@@ -6,6 +6,7 @@ import shutil
 from contextlib import contextmanager
 from datetime import date
 from git import Repo
+from math import ceil
 from pathlib import Path
 
 
@@ -105,6 +106,34 @@ class Spim:
                 imaging_log_dest.unlink()
             # We must use shutil because we may be moving files across disks.
             shutil.move(str(imaging_log_filepath), str(output_folder))
+
+    def get_xy_grid_step(self, tile_overlap_x_percent: float,
+                      tile_overlap_y_percent: float):
+        """Get the step size (in [um]) for a given x/y tile overlap. """
+        # Compute: micrometers per grid step. At 0 tile overlap, this is just
+        # the sensor's field of view.
+        x_grid_step_um = \
+            (1 - tile_overlap_x_percent/100.0) * self.cfg.tile_size_x_um
+        y_grid_step_um = \
+            (1 - tile_overlap_y_percent/100.0) * self.cfg.tile_size_y_um
+        return x_grid_step_um, y_grid_step_um
+
+    def get_tile_counts(self, tile_overlap_x_percent: float,
+                        tile_overlap_y_percent: float, z_step_size_um: float,
+                        volume_x_um: float, volume_y_um: float, volume_z_um: float):
+        """Get the number of x, y, and z tiles for the given x/y tile overlap
+        and imaging volume.
+        """
+        x_grid_step_um, y_grid_step_um = self.get_xy_grid_step(tile_overlap_x_percent,
+                                                               tile_overlap_y_percent)
+        # Compute step and tile count.
+        # Always round up so that we cover the desired imaging region.
+        xsteps = ceil((volume_x_um - self.cfg.tile_size_x_um)
+                      / x_grid_step_um)
+        ysteps = ceil((volume_y_um - self.cfg.tile_size_y_um)
+                      / y_grid_step_um)
+        zsteps = ceil((volume_z_um - z_step_size_um) / z_step_size_um)
+        return 1 + xsteps, 1 + ysteps, 1 + zsteps
 
     def run_from_config(self):
         raise NotImplementedError("Child class must implement this function.")
