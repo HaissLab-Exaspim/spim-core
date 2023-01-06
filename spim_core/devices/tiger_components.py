@@ -79,8 +79,9 @@ class Pose:
         for axis, amount in axes.items():
             axis = axis.lower()
             tiger_axis = self.axis_mapping.get(axis, axis)
+            # FIXME: this is trying to be too clever.
             negative = 1 if tiger_axis.startswith('-') else 0
-            new_axes[tiger_axis] = -1**negative * amount
+            new_axes[tiger_axis] = (-1)**negative * amount
         return new_axes
 
     def _move_relative(self, wait: bool = True, **axes: float):

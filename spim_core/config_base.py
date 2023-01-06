@@ -115,17 +115,26 @@ class SpimConfig(TomlConfig):
         self.tile_specs = self.cfg['tile_specs']
 
     def sanity_check(self):
-        """Run through a bunch of Base Spim sanity checks.
-
-        Log all errors, but raise an AssertionError at the end if
-        any failures exist.
+        """Confirm that config fields have values that are in the right ranges.
         """
+        # Note: do not check if fields exist. Check whether fields are
+        #   the right ranges.
+        # TODO: validate config to ensure all fields exist elsewhere.
+        # Log all errors, but raise an AssertionError at the end if
+        # any failures exist.
         error_msgs = []
         # Check if there is at least one laser wavelength to image with.
         if len(self.channels) < 1:
             msg = "At least one laser must be specified to image with."
             self.log.error(msg)
             error_msgs.append(msg)
+        # Check that laser wavelengths we want to image with actually exist.
+        for channel in self.channels:
+            if channel not in self.possible_channels:
+                msg = f"{channel}[nm] wavelength is not configured for imaging."
+                self.log.error(msg)
+                error_msgs.append(msg)
+        # TODO: Check that a valid file transfer protocol is specified.
         # Warn if there are repeat values in imaging wavelengths.
         if len(set(self.channels)) > len(self.channels):
             self.log.warning("Repeat values are present in the sequence of "
@@ -152,7 +161,7 @@ class SpimConfig(TomlConfig):
 
         # Create a big error message at the end.
         if len(error_msgs):
-            all_msgs = "\n".join(msg for msg in error_msgs)
+            all_msgs = "\n".join(error_msgs)
             raise AssertionError(all_msgs)
 
     # Make @Properties to simplify structure of the toml file

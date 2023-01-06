@@ -108,7 +108,7 @@ class Spim:
             shutil.move(str(imaging_log_filepath), str(output_folder))
 
     def get_xy_grid_step(self, tile_overlap_x_percent: float,
-                      tile_overlap_y_percent: float):
+                         tile_overlap_y_percent: float):
         """Get the step size (in [um]) for a given x/y tile overlap. """
         # Compute: micrometers per grid step. At 0 tile overlap, this is just
         # the sensor's field of view.
