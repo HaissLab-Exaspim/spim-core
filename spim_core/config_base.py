@@ -346,11 +346,11 @@ class SpimConfig(TomlConfig):
 
     @property
     def x_voxel_size_um(self):
-        return self.tile_size_x_um / self.sensor_row_count
+        return self.tile_size_x_um / self.sensor_column_count
 
     @property
     def y_voxel_size_um(self):
-        return self.tile_size_y_um / self.sensor_column_count
+        return self.tile_size_y_um / self.sensor_row_count
 
     @property
     def z_step_size_um(self):
