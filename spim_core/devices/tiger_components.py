@@ -2,7 +2,7 @@
 
 import logging
 from time import sleep
-from tigerasi.tiger_controller import TigerController, UM_TO_STEPS
+from tigerasi.tiger_controller import TigerController, STEPS_PER_UM
 from tigerasi.device_codes import ScanPattern, TTLIn0Mode, TTLOut0Mode, \
     RingBufferMode
 
@@ -89,8 +89,7 @@ class Pose:
         w_text = "" if wait else "NOT "
         self.log.debug(f"Relative move by: {axes_moves}and {w_text}waiting.")
         machine_axes = self._remap(axes)  # change to machine coordinate frame.
-        self.tigerbox.move_axes_relative(**machine_axes, wait_for_output=wait,
-                                         wait_for_reply=wait)
+        self.tigerbox.move_relative(**machine_axes, wait=wait)
         if wait:
             while self.is_moving():
                 sleep(0.001)
@@ -108,8 +107,7 @@ class Pose:
         w_text = "" if wait else "NOT "
         self.log.debug(f"Absolute move to: {axes_moves}and {w_text}waiting.")
         machine_axes = self._remap(axes)  # change to machine coordinate frame.
-        self.tigerbox.move_axes_absolute(**machine_axes, wait_for_output=wait,
-                                         wait_for_reply=wait)
+        self.tigerbox.move_absolute(**machine_axes, wait=wait)
         if wait:
             while self.is_moving():
                 sleep(0.001)
@@ -212,7 +210,7 @@ class Pose:
 
     def _setup_relative_ring_buffer_move(self, axis: str, step_size_mm: float):
         """Queue a single-axis relative move of the specified amount."""
-        step_size_steps = step_size_mm * 1e3 * UM_TO_STEPS
+        step_size_steps = step_size_mm * 1e3 * STEPS_PER_UM
         tiger_frame_move = self._remap({axis.lower(): step_size_steps})
         hw_scan_axis = self.axis_mapping[axis.lower()].lower().lstrip("-")
 
