@@ -38,57 +38,78 @@ class FilterWheel:
 class Pose:
 
     def __init__(self, tigerbox: TigerController, axis_map: dict = None):
-        """Connect to hardware."""
-        self.tigerbox = tigerbox
-        self.axes = []  # list of strings for this Pose's moveable axes.
-        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
-        self.axis_mapping = {}
-        if axis_map is not None:
-            self._apply_axis_remapping(axis_map)
+        """Connect to hardware.
 
-    def _apply_axis_remapping(self, axis_map: dict):
+        :param tigerbox: TigerController instance.
+        :param axis_map: dictionary representing the mapping from sample pose
+            to tigerbox axis.
+            i.e: `axis_map[<sample_frame_axis>] = <tiger_frame_axis>`.
+        """
+        self.tigerbox = tigerbox
+        self.axes = []  # list of strings for this Pose's moveable axes in tiger frame.
+        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
+        # We assume a bijective axis mapping (one-to-one and onto).
+        self.sample_to_tiger_axis_map = {}
+        self.tiger_to_sample_axis_map = {}
+        if axis_map is not None:
+            self.log.debug("Remapping axes with the convention "
+                           "{'sample frame axis': 'machine frame axis'} "
+                           f"from the following dict: {axis_map}.")
+            self.sample_to_tiger_axis_map = self._sanitize_axis_map(axis_map)
+            r_axis_map =  dict(zip(axis_map.values(), axis_map.keys()))
+            self.tiger_to_sample_axis_map = self._sanitize_axis_map(r_axis_map)
+            self.log.debug(f"New sample to tiger axis mapping: "
+                           f"{self.sample_to_tiger_axis_map}")
+            self.log.debug(f"New tiger to sample axis mapping: "
+                           f"{self.tiger_to_sample_axis_map}")
+
+    def _sanitize_axis_map(self, axis_map: dict):
         """save an input axis mapping to apply to move commands.
 
         :param axis_map: dict, where the key (str) is the desired coordinate
             axis and the value (str) is the underlying machine coordinate axis.
             Note that the value may be signed, i.e: '-y'.
         """
-        self.log.debug("Remapping axes with the convention "
-                       "{'sample frame axis': 'machine frame axis'} "
-                       f"from the following dict: {axis_map}.")
-        # Cleanup axis mapping to move negative signs off keys and onto values.
+        # Move negative signs off keys and onto values.
         sanitized_axis_map = {}
         for axis, t_axis in axis_map.items():
             axis = axis.lower()
             t_axis = t_axis.lower()
             sign = "-" if axis.startswith("-") ^ t_axis.startswith("-") else ""
             sanitized_axis_map[axis.lstrip("-")] = f"{sign}{t_axis.lstrip('-')}"
-        self.axis_mapping = sanitized_axis_map
-        self.log.debug(f"New axis mapping: {self.axis_mapping}")
+        return sanitized_axis_map
 
-    def _remap(self, axes: dict):
+    def _remap(self, axes: dict, mapping: dict):
         """remap input axes to their corresponding output axes.
 
         Input axes is the desired coordinate frame convention;
         output axes are the axes as interpreted by the underlying hardware.
 
-        :returns: a dict of moves with the keys remapped to the
+        :returns: either: a list of axes remapped to the new names
+            or a dict of moves with the keys remapped to the underlying
             underlying hardware axes and the values unchanged.
         """
         new_axes = {}
         for axis, amount in axes.items():
             axis = axis.lower()
-            tiger_axis = self.axis_mapping.get(axis, axis)
-            # FIXME: this is trying to be too clever.
-            negative = 1 if tiger_axis.startswith('-') else 0
-            new_axes[tiger_axis] = (-1)**negative * amount
+            # Default to same axis if no remapped axis exists.
+            new_axis = mapping.get(axis, axis)  # Get new key.
+            negative = 1 if b_frame_axis.startswith('-') else 0
+            new_axes[new_axis] = (-1)**negative * amount  # Get new value.
         return new_axes
+
+    def _sample_to_tiger(self, axes: dict):
+        return self._remap(axes, self.sample_to_tiger_axis_map)
+
+    def _tiger_to_sample(self, axes: dict):
+        return self._remap(axes, self.tiger_to_sample_axis_map)
 
     def _move_relative(self, wait: bool = True, **axes: float):
         axes_moves = "".join([f'{k}={v:.3f} ' for k, v in axes.items()])
         w_text = "" if wait else "NOT "
         self.log.debug(f"Relative move by: {axes_moves}and {w_text}waiting.")
-        machine_axes = self._remap(axes)  # change to machine coordinate frame.
+        # Remap to hardware coordinate frame.
+        machine_axes = self._sample_to_tiger(axes)
         self.tigerbox.move_relative(**machine_axes, wait=wait)
         if wait:
             while self.is_moving():
@@ -106,17 +127,17 @@ class Pose:
         axes_moves = "".join([f'{k}={v:.3f} ' for k, v in axes.items()])
         w_text = "" if wait else "NOT "
         self.log.debug(f"Absolute move to: {axes_moves}and {w_text}waiting.")
-        machine_axes = self._remap(axes)  # change to machine coordinate frame.
+        # Remap to hardware coordinate frame.
+        machine_axes = self._sample_to_tiger(axes)
         self.tigerbox.move_absolute(**machine_axes, wait=wait)
         if wait:
             while self.is_moving():
                 sleep(0.001)
 
     def get_position(self):
-        return self.tigerbox.get_position(*self.axes)
+        tiger_position = self.tigerbox.get_position(*self.axes)
+        return self._tiger_to_sample(tiger_position)
 
-    # TODO: do we really need to expose this to the API if we have properly
-    #   implemented a wait option?
     def is_moving(self):
         # FIXME: technically, this is true if any tigerbox axis is moving,
         #   but that's all we need for now.
@@ -132,7 +153,7 @@ class Pose:
 
     def set_axis_backlash(self, **axes: float):
         """Set the axis backlash compensation to a set value (0 to disable)."""
-        machine_axes = self._remap(axes)
+        machine_axes = self._sample_to_tiger(axes)
         self.tigerbox.set_axis_backlash(**machine_axes)
 
     def setup_finite_tile_scan(self, fast_axis: str, slow_axis: str,
@@ -158,8 +179,8 @@ class Pose:
         # TODO: if position is unspecified, we should set is as
         #  "current position" from hardware.
         # Get the axis id in machine coordinate frame.
-        machine_fast_axis = self.axis_mapping[fast_axis.lower()].lstrip("-")
-        machine_slow_axis = self.axis_mapping[slow_axis.lower()].lstrip("-")
+        machine_fast_axis = self.sample_to_tiger_axis_map[fast_axis.lower()].lstrip("-")
+        machine_slow_axis = self.sample_to_tiger_axis_map[slow_axis.lower()].lstrip("-")
         fast_axis_id = self.tigerbox.get_axis_id(machine_fast_axis)
         slow_axis_id = self.tigerbox.get_axis_id(machine_slow_axis)
         # Get encoder divisions in machine coordinate frame.
@@ -171,11 +192,11 @@ class Pose:
                        f"Actual spacing: {ticks_per_tile_rounded}[um].")
         # Get start/stop positions in machine coordinate frame.
         machine_fast_axis_start_position = \
-            list(self._remap(**{fast_axis: fast_axis_start_position}).items())[0][1]
+            list(self._sample_to_tiger(**{fast_axis: fast_axis_start_position}).items())[0][1]
         machine_slow_axis_start_position = \
-            list(self._remap(**{slow_axis: slow_axis_start_position}).items())[0][1]
+            list(self._sample_to_tiger(**{slow_axis: slow_axis_start_position}).items())[0][1]
         machine_slow_axis_stop_position = \
-            list(self._remap(**{slow_axis: slow_axis_stop_position}).items())[0][1]
+            list(self._sample_to_tiger(**{slow_axis: slow_axis_stop_position}).items())[0][1]
         # Stop any existing scan. Apply machine coordinate frame scan params.
         self.tigerbox.stop_scan()
         self.tigerbox.scan(fast_axis_id=fast_axis_id,
@@ -211,8 +232,8 @@ class Pose:
     def _setup_relative_ring_buffer_move(self, axis: str, step_size_mm: float):
         """Queue a single-axis relative move of the specified amount."""
         step_size_steps = step_size_mm * 1e3 * STEPS_PER_UM
-        tiger_frame_move = self._remap({axis.lower(): step_size_steps})
-        hw_scan_axis = self.axis_mapping[axis.lower()].lower().lstrip("-")
+        tiger_frame_move = self._sample_to_tiger({axis.lower(): step_size_steps})
+        hw_scan_axis = self.sample_to_tiger_axis_map[axis.lower()].lower().lstrip("-")
 
         self.log.debug(f"Provisioning tigerbox for externally triggered "
                        f"relative move: {tiger_frame_move}")
@@ -230,8 +251,8 @@ class Pose:
         self.log.error("This function is untested.")
         # Get Tigerbox axis/direction from args specified in SamplePose frame.
         hw_scan_axis, step_size_mm = \
-            next(iter(self._remap({axis.lower(): step_size_mm})))
-        _, start_pos_mm = next(iter(self._remap({axis.lower(): start_pos_mm})))
+            next(iter(self._sample_to_tiger({axis.lower(): step_size_mm})))
+        _, start_pos_mm = next(iter(self._sample_to_tiger({axis.lower(): start_pos_mm})))
         if hw_scan_axis not in ['x', 'y']:
             raise RuntimeError("Error, Tigerbox 'ARRAY'-style scans can only "
                                "be configured on the x or y stage axes.")
