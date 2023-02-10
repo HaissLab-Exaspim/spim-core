@@ -99,9 +99,29 @@ class Pose:
         return new_axes
 
     def _sample_to_tiger(self, axes: dict):
+        """Remap a position or position delta specified in the sample frame to
+        the tiger frame.
+
+        :return: a dict of the position or position delta specified in the
+            tiger frame
+        """
         return self._remap(axes, self.sample_to_tiger_axis_map)
 
+    def _sample_to_tiger_axis_list(self, *axes):
+        """Return the axis specified in the sample frame to axis in the tiger
+        frame. Minus signs are omitted."""
+        # Easiest way to convert is to temporarily convert into dict.
+        axes_dict = {x: 0 for x in axes}
+        tiger_axes_dict = self._sample_to_tiger(axes_dict)
+        return list(tiger_axes_dict.keys())
+
     def _tiger_to_sample(self, axes: dict):
+        """Remap a position or position delta specified in the tiger frame to
+        the sample frame.
+
+        :return: a dict of the position or position delta specified in the
+            sample frame
+        """
         return self._remap(axes, self.tiger_to_sample_axis_map)
 
     def _move_relative(self, wait: bool = True, **axes: float):
@@ -150,6 +170,24 @@ class Pose:
         if len(axes) == 0:
             axes = self.axes
         return self.tigerbox.zero_in_place(*axes)
+
+    def get_travel_limits(self, *axes: str):
+        """ Get the travel limits for the specified axes.
+
+        :return: a dict of 2-value lists, where the first element is the lower
+            travel limit and the second element is the upper travel limit.
+        """
+        limits = {}
+        for ax in axes:
+            # Get lower/upper limit in tigerbox frame.
+            tiger_ax = self._sample_to_tiger_axis_list(ax)[0]
+            tiger_limit_a = self.tigerbox.get_lower_travel_limit(tiger_ax)
+            tiger_limit_b = self.tigerbox.get_upper_travel_limit(tiger_ax)
+            # Convert to sample frame before returning.
+            sample_limit_a = list(self._tiger_to_sample(tiger_limit_a).values())[0]
+            sample_limit_b = list(self._tiger_to_sample(tiger_limit_b).values())[0]
+            limits[ax] = sorted([sample_limit_a, sample_limit_b])
+        return limits
 
     def set_axis_backlash(self, **axes: float):
         """Set the axis backlash compensation to a set value (0 to disable)."""
