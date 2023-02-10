@@ -90,12 +90,12 @@ class Pose:
             underlying hardware axes and the values unchanged.
         """
         new_axes = {}
-        for axis, amount in axes.items():
+        for axis, value in axes.items():
             axis = axis.lower()
             # Default to same axis if no remapped axis exists.
             new_axis = mapping.get(axis, axis)  # Get new key.
-            negative = 1 if b_frame_axis.startswith('-') else 0
-            new_axes[new_axis] = (-1)**negative * amount  # Get new value.
+            negative = 1 if new_axis.startswith('-') else 0
+            new_axes[new_axis.lstrip('-')] = (-1)**negative * value # Get new value.
         return new_axes
 
     def _sample_to_tiger(self, axes: dict):
