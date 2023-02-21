@@ -228,8 +228,8 @@ class Pose:
             list(self._sample_to_tiger(**{slow_axis: slow_axis_stop_position}).items())[0][1]
         # Stop any existing scan. Apply machine coordinate frame scan params.
         self.tigerbox.stop_scan()
-        self.tigerbox.scan(machine_fast_axis, machine_slow_axis
-                           pattern=ScanPattern.RASTER)
+        self.tigerbox.setup_scan(machine_fast_axis, machine_slow_axis,
+                                 pattern=ScanPattern.RASTER)
         self.tigerbox.scanr(scan_start_mm=machine_fast_axis_start_position,
                             pulse_interval_um=tile_interval_um,
                             num_pixels=tile_count)
