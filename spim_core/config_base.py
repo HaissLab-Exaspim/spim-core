@@ -291,16 +291,14 @@ class SpimConfig(TomlConfig):
             str(storage_path.absolute())
 
     @property
-    def ext_storage_dir(self) -> Path:
+    def ext_storage_dir(self) -> Union[Path, None]:
         """returns the config-specified external storage directory.
         If unspecified, default to the local storage directory.
         """
         try:
             return Path(self.cfg['imaging_specs']['external_storage_directory'])
         except KeyError:
-            self.cfg['imaging_specs']['external_storage_directory'] = \
-                str(self.local_storage_dir)  # This is already a Path object.
-            return self.ext_storage_dir  # Recurse but successfully this time.
+            return None
 
     @ext_storage_dir.setter
     def ext_storage_dir(self, storage_path: Path):
