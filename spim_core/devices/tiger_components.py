@@ -221,18 +221,21 @@ class Pose:
         machine_slow_axis = self.sample_to_tiger_axis_map[slow_axis.lower()].lstrip("-")
         # Get start/stop positions in machine coordinate frame.
         machine_fast_axis_start_position = \
-            list(self._sample_to_tiger(**{fast_axis: fast_axis_start_position}).items())[0][1]
+            list(self._sample_to_tiger({fast_axis: fast_axis_start_position}).items())[0][1]
         machine_slow_axis_start_position = \
-            list(self._sample_to_tiger(**{slow_axis: slow_axis_start_position}).items())[0][1]
+            list(self._sample_to_tiger({slow_axis: slow_axis_start_position}).items())[0][1]
         machine_slow_axis_stop_position = \
-            list(self._sample_to_tiger(**{slow_axis: slow_axis_stop_position}).items())[0][1]
+            list(self._sample_to_tiger({slow_axis: slow_axis_stop_position}).items())[0][1]
         # Stop any existing scan. Apply machine coordinate frame scan params.
-        self.tigerbox.stop_scan()
+
+        self.log.debug(f"machine fast axis start: {machine_fast_axis_start_position},"
+                       f"machine slow axis start: {machine_slow_axis_start_position}")
         self.tigerbox.setup_scan(machine_fast_axis, machine_slow_axis,
-                                 pattern=ScanPattern.RASTER)
+                                 pattern=ScanPattern.RASTER,)
         self.tigerbox.scanr(scan_start_mm=machine_fast_axis_start_position,
                             pulse_interval_um=tile_interval_um,
-                            num_pixels=tile_count)
+                            num_pixels=tile_count,
+                            retrace_speed_percent=100.)
         self.tigerbox.scanv(scan_start_mm=machine_slow_axis_start_position,
                             scan_stop_mm=machine_slow_axis_stop_position,
                             line_count=line_count)
