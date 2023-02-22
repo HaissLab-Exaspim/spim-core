@@ -21,9 +21,6 @@ class Spim:
         # Setup logging. Application level will add handlers to direct output
         # messages to screen/file/etc.
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        # logger level must be set to the lowest level of any handler.
-        #self.log.setLevel(logging.DEBUG)
-
         # Location where images will be saved to from a config-based run.
         # We don't know this in advance since we create the folder at runtime.
         # TODO: consider getting these from the config.
@@ -41,7 +38,7 @@ class Spim:
                ws.module_path and  # This can be None.
                not ws.module_path.endswith(('site-packages', 'dist-packages'))}
         for pkg_name, env_path in env.items():
-            repo = Repo(env_path)
+            repo = Repo(env_path, search_parent_directories=True)
             self.log.debug(f"{pkg_name} on branch {repo.active_branch} at "
                            f"{repo.head.object.hexsha}")
             if repo.is_dirty():
@@ -77,28 +74,40 @@ class Spim:
             data if the output folder already exists. False by default.
         """
         self.cfg.sanity_check()
-        # Create output folder and folder for storing images.
-        output_folder = \
-            self.cfg.ext_storage_dir / Path(self.cfg.subject_id + "-ID_" +
-                                            date.today().strftime("%Y_%m_%d"))
-        if output_folder.exists() and not overwrite:
-            self.log.error(f"Output folder {output_folder.absolute()} exists, "
-                           "This function must be rerun with overwrite=True.")
-            raise
-        self.img_storage_dir = output_folder / Path("micr/")
-        self.deriv_storage_dir = output_folder / Path("derivatives/")
-        self.log.info(f"Creating datset folder in: {output_folder.absolute()}")
-        self.img_storage_dir.mkdir(parents=True, exist_ok=overwrite)
-        self.deriv_storage_dir.mkdir(parents=True, exist_ok=overwrite)
-        # Save the config file we will run.
-        self.cfg.save(output_folder, overwrite=overwrite)
+        # Define img & derivative storage folders if external folder is specified.
+        # if external storage directory is not specified, ignore overwrite
+        # checks and leave it undefined. Data will be written to local storage
+        # folder.
+        output_folder = None
+        if self.cfg.ext_storage_dir is not None:
+            output_folder = \
+                self.cfg.ext_storage_dir / Path(self.cfg.subject_id + "-ID_" +
+                                                date.today().strftime("%Y_%m_%d"))
+            if output_folder.exists() and not overwrite:
+                self.log.error(f"Output folder {output_folder.absolute()} exists. "
+                               "This function must be rerun with overwrite=True.")
+                raise
+            self.img_storage_dir = output_folder / Path("micr/")
+            self.deriv_storage_dir = output_folder / Path("derivatives/")
+            self.log.info(f"Creating datset folder in: {output_folder.absolute()}")
+            self.img_storage_dir.mkdir(parents=True, exist_ok=overwrite)
+            self.deriv_storage_dir.mkdir(parents=True, exist_ok=overwrite)
+            # Save the config file we will run.
+            self.cfg.save(output_folder, overwrite=overwrite)
+        else:
+            self.log.warning("External storage directory unspecified. Files "
+                             f"will remain at {self.cfg.local_storage_dir}."
+                             f"Any existing files will be overwritten.")
         # Log to a file for the duration of this function's execution.
         imaging_log_filepath = Path("imaging_log.log")  # name should be a constant.
         try:
             with self.log_to_file(imaging_log_filepath):
                 self.log_git_hashes()
                 self.run_from_config()
-        finally:  # Transfer log files to output folder, even on failure.
+        finally:  # Transfer log file to output folder, even on failure.
+            # Bail early if file does not need to be transferred.
+            if output_folder in [Path("."), None]:
+                return
             # Note: shutil can't overwrite, so we must delete any prior imaging
             #   log in the destination folder if we are overwriting.
             imaging_log_dest = output_folder/Path(imaging_log_filepath.name)
@@ -135,13 +144,20 @@ class Spim:
         zsteps = ceil((volume_z_um - z_step_size_um) / z_step_size_um)
         return 1 + xsteps, 1 + ysteps, 1 + zsteps
 
+    def apply_config(self):
+        """Apply the new state (all changes) present in the config object"""
+        raise NotImplementedError
+
     def run_from_config(self):
         raise NotImplementedError("Child class must implement this function.")
 
-    def livestream(self):
+    def start_livestream(self, wavelength: int = None):
         raise NotImplementedError
 
-    def get_live_view_image(self, channel: int = None):
+    def stop_livestream(self):
+        raise NotImplementedError
+
+    def get_latest_image(self, channel: int = None):
         """Return the most recent acquisition image for display elsewhere."""
         raise NotImplementedError
 
