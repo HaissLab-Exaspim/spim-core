@@ -219,30 +219,23 @@ class Pose:
         # Get the axis id in machine coordinate frame.
         machine_fast_axis = self.sample_to_tiger_axis_map[fast_axis.lower()].lstrip("-")
         machine_slow_axis = self.sample_to_tiger_axis_map[slow_axis.lower()].lstrip("-")
-        fast_axis_id = self.tigerbox.get_axis_id(machine_fast_axis)
-        slow_axis_id = self.tigerbox.get_axis_id(machine_slow_axis)
-        # Get encoder divisions in machine coordinate frame.
-        ticks_per_mm = self.tigerbox.get_encoder_ticks_per_mm(machine_fast_axis)
-        ticks_per_tile = ticks_per_mm * tile_interval_um / 1e3
-        ticks_per_tile_rounded = round(ticks_per_tile)
-        self.log.debug(f"Requested tile scan {fast_axis}-stack spacing: "
-                       f"{tile_interval_um}[um]. "
-                       f"Actual spacing: {ticks_per_tile_rounded}[um].")
         # Get start/stop positions in machine coordinate frame.
         machine_fast_axis_start_position = \
-            list(self._sample_to_tiger(**{fast_axis: fast_axis_start_position}).items())[0][1]
+            list(self._sample_to_tiger({fast_axis: fast_axis_start_position}).items())[0][1]
         machine_slow_axis_start_position = \
-            list(self._sample_to_tiger(**{slow_axis: slow_axis_start_position}).items())[0][1]
+            list(self._sample_to_tiger({slow_axis: slow_axis_start_position}).items())[0][1]
         machine_slow_axis_stop_position = \
-            list(self._sample_to_tiger(**{slow_axis: slow_axis_stop_position}).items())[0][1]
+            list(self._sample_to_tiger({slow_axis: slow_axis_stop_position}).items())[0][1]
         # Stop any existing scan. Apply machine coordinate frame scan params.
-        self.tigerbox.stop_scan()
-        self.tigerbox.scan(fast_axis_id=fast_axis_id,
-                           slow_axis_id=slow_axis_id,
-                           pattern=ScanPattern.RASTER)
+
+        self.log.debug(f"machine fast axis start: {machine_fast_axis_start_position},"
+                       f"machine slow axis start: {machine_slow_axis_start_position}")
+        self.tigerbox.setup_scan(machine_fast_axis, machine_slow_axis,
+                                 pattern=ScanPattern.RASTER,)
         self.tigerbox.scanr(scan_start_mm=machine_fast_axis_start_position,
-                            pulse_interval_enc_ticks=ticks_per_tile_rounded,
-                            num_pixels=tile_count)
+                            pulse_interval_um=tile_interval_um,
+                            num_pixels=tile_count,
+                            retrace_speed_percent=100.)
         self.tigerbox.scanv(scan_start_mm=machine_slow_axis_start_position,
                             scan_stop_mm=machine_slow_axis_stop_position,
                             line_count=line_count)
@@ -252,6 +245,7 @@ class Pose:
         :meth:`setup_finite_tile_scan`."""
         # Kick off raster-style (default) scan.
         self.tigerbox.start_scan()
+        #self.tigerbox.start_array_scan()
 
     def setup_ext_trigger_linear_move(self, axis: str, num_pts: int,
                                       step_size_mm: float):
