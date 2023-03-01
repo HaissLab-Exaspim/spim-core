@@ -16,7 +16,7 @@ class TiffTransfer(Process):
 
     def run(self):
         """Transfer the file from source to dest."""
-        if not os.path.isfile(self.source) or os.path.isdir(self.source):
+        if not os.path.isfile(self.source) and not os.path.isdir(self.source):
             raise FileNotFoundError(f"{self.source} does not exist.")
         # Transfer the file.
         # print("SKIPPING FILE TRANSFER TO STORAGE")
@@ -31,4 +31,3 @@ class TiffTransfer(Process):
         print(f"Deleting old file at {self.source}.")
         shutil.rmtree(self.source) if os.path.isdir(self.source) else os.remove(self.source)
         print(f"process finished.")
-
