@@ -21,6 +21,8 @@ class Spim:
         # Setup logging. Application level will add handlers to direct output
         # messages to screen/file/etc.
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.schema_log = logging.getLogger(
+            f"{__name__}.{self.__class__.__name__}Schema")
         # Location where images will be saved to from a config-based run.
         # We don't know this in advance since we create the folder at runtime.
         # TODO: consider getting these from the config.
