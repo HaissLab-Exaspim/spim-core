@@ -4,11 +4,9 @@ from pathlib import Path
 import subprocess
 import shutil
 import os
-import time
-#import subprocess
 
 
-class TiffTransfer(Process):
+class DataTransfer(Process):
 
     def __init__(self, source: Path, dest: Path):
         super().__init__()
@@ -17,7 +15,7 @@ class TiffTransfer(Process):
 
     def run(self):
         """Transfer the file from source to dest."""
-        if not os.path.isfile(self.source) and not os.path.isdir(self.source):
+        if not self.source.exists():
             raise FileNotFoundError(f"{self.source} does not exist.")
         # Transfer the file.
         # print("SKIPPING FILE TRANSFER TO STORAGE")

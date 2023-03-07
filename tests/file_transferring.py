@@ -1,5 +1,5 @@
 from pathlib import Path
-from spim_core.file_transfer import TiffTransfer
+from spim_core.data_transfer import TiffTransfer
 
 if __name__ == "__main__":
 
