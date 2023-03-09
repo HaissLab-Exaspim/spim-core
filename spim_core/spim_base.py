@@ -10,6 +10,7 @@ from git import Repo
 from math import ceil
 from pathlib import Path
 
+
 def lock_external_user_input(func):
     """Disable any manual hardware user inputs if possible."""
     @wraps(func)
@@ -17,10 +18,11 @@ def lock_external_user_input(func):
         # Lock user inputs.
         self.lock_external_user_input()
         try:
-            return func(self, *args, kwds)
+            return func(self, *args, **kwds)
         finally:
             # Unlock user inputs.
             self.unlock_external_user_input()
+    return inner
 
 
 class Spim:
@@ -166,10 +168,10 @@ class Spim:
     def run_from_config(self):
         raise NotImplementedError("Child class must implement this function.")
 
-    def lock_external_user_input(self)
+    def lock_external_user_input(self):
         raise NotImplementedError
 
-    def unlock_external_user_input(self)
+    def unlock_external_user_input(self):
         raise NotImplementedError
 
     def start_livestream(self, wavelength: int = None):

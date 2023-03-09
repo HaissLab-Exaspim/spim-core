@@ -313,7 +313,7 @@ class Pose:
 
     def unlock_external_user_input(self):
         self.log.info("Releasing joystick control.")
-        self.tigerbox.enable_joystick_input()
+        self.tigerbox.enable_joystick_inputs()
 
 
 class CameraPose(Pose):
