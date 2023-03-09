@@ -5,9 +5,22 @@ import logging
 import shutil
 from contextlib import contextmanager
 from datetime import date
+from functools import wraps
 from git import Repo
 from math import ceil
 from pathlib import Path
+
+def lock_external_user_input(func):
+    """Disable any manual hardware user inputs if possible."""
+    @wraps(func)
+    def inner(self, *args, **kwds):
+        # Lock user inputs.
+        self.lock_external_user_input()
+        try:
+            return func(self, *args, kwds)
+        finally:
+            # Unlock user inputs.
+            self.unlock_external_user_input()
 
 
 class Spim:
@@ -152,6 +165,12 @@ class Spim:
 
     def run_from_config(self):
         raise NotImplementedError("Child class must implement this function.")
+
+    def lock_external_user_input(self)
+        raise NotImplementedError
+
+    def unlock_external_user_input(self)
+        raise NotImplementedError
 
     def start_livestream(self, wavelength: int = None):
         raise NotImplementedError

@@ -307,6 +307,14 @@ class Pose:
         # Set axis backlash compensation to 0.
         self.tigerbox.set_axis_backlash(**{hw_scan_axis: 0})
 
+    def lock_external_user_input(self):
+        self.log.info("Locking joystick control.")
+        self.tigerbox.disable_joystick_inputs()
+
+    def unlock_external_user_input(self):
+        self.log.info("Releasing joystick control.")
+        self.tigerbox.enable_joystick_input()
+
 
 class CameraPose(Pose):
 
