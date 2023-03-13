@@ -20,7 +20,7 @@ class DataTransfer(Process):
         # Transfer the file.
         # print("SKIPPING FILE TRANSFER TO STORAGE")
         print(f"Transferring {self.source} to storage in {self.dest}.")
-        parameters = '" /q /y /i /j /s /e' if os.path.isdir(self.source) else '*" /i /j'
+        parameters = '" /q /y /i /j /s /e' if os.path.isdir(self.source) else '*" /y /i /j'
         print(f"xcopy {self.source} {self.dest}{parameters}")
         cmd = subprocess.run(f'xcopy "{self.source}" "{self.dest}{parameters}')
         # Delete the old file so we don't run out of local storage.
