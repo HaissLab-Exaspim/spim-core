@@ -22,7 +22,7 @@ class DataTransfer(Process):
         print(f"Transferring {self.source} to storage in {self.dest}.")
         parameters = '" /q /y /i /j /s /e' if os.path.isdir(self.source) else '*" /i /j'
         print(f"xcopy {self.source} {self.dest}{parameters}")
-        #cmd = subprocess.run(f'xcopy "{self.source}" "{self.dest}{parameters}')
+        cmd = subprocess.run(f'xcopy "{self.source}" "{self.dest}{parameters}')
         # Delete the old file so we don't run out of local storage.
         print(f"Deleting old file at {self.source}.")
         shutil.rmtree(self.source) if os.path.isdir(self.source) else os.remove(self.source)
