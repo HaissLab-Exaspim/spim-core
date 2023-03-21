@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from datetime import date
 from functools import wraps
 from git import Repo
+from logging import Logger
 from math import ceil
 from pathlib import Path
 
@@ -56,17 +57,17 @@ class Spim:
                not ws.module_path.endswith(('site-packages', 'dist-packages'))}
         for pkg_name, env_path in env.items():
             repo = Repo(env_path, search_parent_directories=True)
-            self.log.debug(f"{pkg_name} on branch {repo.active_branch} at "
+            self.schema_log.debug(f"{pkg_name} on branch {repo.active_branch} at "
                            f"{repo.head.object.hexsha}")
             if repo.is_dirty():
-                self.log.error(f"{pkg_name} has uncommitted changes.")
+                self.schema_log.error(f"{pkg_name} has uncommitted changes.")
 
     def log_runtime_estimate(self):
         """Log how much time the configured imaging run will take."""
         raise NotImplementedError
 
     @contextmanager
-    def log_to_file(self, log_filepath: Path):
+    def log_to_file(self, log_filepath: Path, logger: Logger = None):
         """Log to a file for the duration of a function's execution."""
         log_handler = logging.FileHandler(log_filepath, 'w')
         log_handler.setLevel(logging.DEBUG)
@@ -76,13 +77,14 @@ class Spim:
         datefmt = '%Y-%m-%d,%H:%M:%S'
         log_format = logging.Formatter(fmt, datefmt)
         log_handler.setFormatter(log_format)
+        if logger is None:  # Get the root logger if no logger was specified.
+            logger = logging.getLogger()
         try:
-            # Add handler to the root logger.
-            logging.getLogger().addHandler(log_handler)
+            logger.addHandler(log_handler)
             yield  # Give up control to the decorated function.
         finally:
             log_handler.close()
-            logging.getLogger().removeHandler(log_handler)
+            logger.removeHandler(log_handler)
 
     def run(self, overwrite: bool = False):
         """Collect data according to config; populate dest folder with data.
@@ -116,11 +118,14 @@ class Spim:
                              f"will remain at {self.cfg.local_storage_dir}."
                              f"Any existing files will be overwritten.")
         # Log to a file for the duration of this function's execution.
-        imaging_log_filepath = Path("imaging_log.log")  # name should be a constant.
+        # TODO: names should be constants.
+        imaging_log_filepath = Path("imaging_log.log")
+        schema_log_filepath = Path("schema_log.log")
         try:
             with self.log_to_file(imaging_log_filepath):
-                self.log_git_hashes()
-                self.run_from_config()
+                with self.log_to_file(schema_log_filepath, self.schema_log):
+                    self.log_git_hashes()
+                    self.run_from_config()
         finally:  # Transfer log file to output folder, even on failure.
             # Bail early if file does not need to be transferred.
             if output_folder in [Path("."), None]:
@@ -130,8 +135,12 @@ class Spim:
             imaging_log_dest = output_folder/Path(imaging_log_filepath.name)
             if overwrite and imaging_log_dest.exists():
                 imaging_log_dest.unlink()
+            schema_log_dest = output_folder/Path(schema_log_filepath.name)
+            if overwrite and schema_log_dest.exists():
+                schema_log_dest.unlink()
             # We must use shutil because we may be moving files across disks.
             shutil.move(str(imaging_log_filepath), str(output_folder))
+            shutil.move(str(schema_log_filepath), str(output_folder))
 
     def get_xy_grid_step(self, tile_overlap_x_percent: float,
                          tile_overlap_y_percent: float):
