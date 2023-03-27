@@ -82,7 +82,7 @@ class Spim:
         # TODO: un-hardcode log format and put it in the config.
         fmt = '%(asctime)s.%(msecs)03d %(levelname)s %(name)s: %(message)s'
         fmt = "[SIM] " + fmt if self.simulated else fmt
-        datefmt = '%Y-%m-%d,%H:%M:%S.%f'
+        datefmt = '%Y-%m-%d,%H:%M:%S'
         log_formatter = formatter_class(fmt, datefmt)
         log_handler.setFormatter(log_formatter)
         if logger is None:  # Get the root logger if no logger was specified.
