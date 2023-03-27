@@ -4,7 +4,7 @@ import pkg_resources
 import logging
 import shutil
 from contextlib import contextmanager
-from datetime import date
+import datetime
 from functools import wraps
 from git import Repo
 from logging import Logger, FileHandler, Formatter
@@ -45,6 +45,7 @@ class Spim:
         # TODO: consider getting these from the config.
         self.img_storage_dir = None  # folder for image stacks.
         self.deriv_storage_dir = None  # folder for derivative files (MIPs).
+        self.cache_storage_dir = None # folder for streaming data
 
         # Config. This will get defined in the child class.
         self.cfg = None
@@ -104,18 +105,27 @@ class Spim:
         # if external storage directory is not specified, ignore overwrite
         # checks and leave it undefined. Data will be written to local storage
         # folder.
+        date_time_string = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        if self.cfg.local_storage_dir is not None:
+            self.cache_storage_dir = \
+                self.cfg.local_storage_dir / Path(self.cfg.subject_id + "-ID_" + date_time_string)
+            if self.cache_storage_dir.exists() and not overwrite:
+                self.log.error(f"Local folder {self.cache_storage_dir.absolute()} exists. "
+                               "This function must be rerun with overwrite=True.")
+                raise
+            self.log.info(f"Creating dataset folder in: {self.cache_storage_dir.absolute()}")
+            self.cache_storage_dir.mkdir(parents=True, exist_ok=overwrite)
         output_folder = None
         if self.cfg.ext_storage_dir is not None:
             output_folder = \
-                self.cfg.ext_storage_dir / Path(self.cfg.subject_id + "-ID_" +
-                                                date.today().strftime("%Y_%m_%d"))
+                self.cfg.ext_storage_dir / Path(self.cfg.subject_id + "-ID_" + date_time_string)
             if output_folder.exists() and not overwrite:
                 self.log.error(f"Output folder {output_folder.absolute()} exists. "
                                "This function must be rerun with overwrite=True.")
                 raise
             self.img_storage_dir = output_folder / Path("micr/")
             self.deriv_storage_dir = output_folder / Path("derivatives/")
-            self.log.info(f"Creating datset folder in: {output_folder.absolute()}")
+            self.log.info(f"Creating dataset folder in: {output_folder.absolute()}")
             self.img_storage_dir.mkdir(parents=True, exist_ok=overwrite)
             self.deriv_storage_dir.mkdir(parents=True, exist_ok=overwrite)
             # Save the config file we will run.
