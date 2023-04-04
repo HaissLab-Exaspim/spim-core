@@ -6,10 +6,14 @@ from contextlib import contextmanager
 import datetime
 from functools import wraps
 from pygit2 import Repository, GitError
+from logging import Logger, FileHandler, Formatter, Filter
+from pygit2 import Repository
 from logging import Logger, FileHandler, Formatter
 from spim_core.operations.dict_formatter import DictFormatter
+from spim_core.operations.aind_schema_filter import AINDSchemaFilter
 from math import ceil
 from pathlib import Path
+from typing import Union
 
 
 def lock_external_user_input(func):
@@ -79,12 +83,15 @@ class Spim:
 
     @contextmanager
     def log_to_file(self, filepath: Path, logger: Logger = None,
-                    formatter_class: type[Formatter] = Formatter):
+                    formatter_class: type[Formatter] = Formatter,
+                    filter_class: Union[type[Filter], None] = None):
         """Log to a file for the duration of a function's execution.
 
         :param log_filepath: file name (pathlike) to write the data to.
         :param logger: a particular logger to log to file. If unspecified,
             the root logger will be used.
+        :param formatter_class: the formatter class type to instantiate.
+        :param filter_class: the filter class type to instantiate.
         """
         log_handler = FileHandler(filepath, 'w')
         log_handler.setLevel(logging.DEBUG)
@@ -94,6 +101,8 @@ class Spim:
         datefmt = '%Y-%m-%d,%H:%M:%S'
         log_formatter = formatter_class(fmt, datefmt)
         log_handler.setFormatter(log_formatter)
+        if filter_class:
+            log_handler.addFilter(filter_class())
         if logger is None:  # Get the root logger if no logger was specified.
             logger = logging.getLogger()
         try:
@@ -149,8 +158,9 @@ class Spim:
         schema_log_filepath = Path("schema_log.log")
         try:
             with self.log_to_file(imaging_log_filepath):
-                with self.log_to_file(schema_log_filepath, self.schema_log,
-                                      DictFormatter):
+                # Create log file from which to generate the AIND schema.
+                with self.log_to_file(schema_log_filepath, None,
+                                      DictFormatter, AINDSchemaFilter):
                     self.log_git_hashes()
                     self.run_from_config()
         finally:  # Transfer log file to output folder, even on failure.
