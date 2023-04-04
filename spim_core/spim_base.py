@@ -1,12 +1,11 @@
 """Spim Base class."""
-
-import pkg_resources
+import pkgutil
 import logging
 import shutil
 from contextlib import contextmanager
 import datetime
 from functools import wraps
-from git import Repo
+from pygit2 import Repository
 from logging import Logger, FileHandler, Formatter
 from spim_core.operations.dict_formatter import DictFormatter
 from math import ceil
@@ -52,16 +51,21 @@ class Spim:
 
     def log_git_hashes(self):
         """Log the git hashes of this project and all packages."""
-        # Iterate through this pkg's required packages and log all git hashes.
-        # Warn if they have been changed.
-        env = {str(ws): ws.module_path for ws in pkg_resources.working_set if
-               ws.module_path and  # This can be None.
-               not ws.module_path.endswith(('site-packages', 'dist-packages'))}
+        # Iterate through this pkg's packages installed in editable mode and
+        # log all git hashes.
+        # Scoop up packages installed in editable mode.
+        env = {name: info.path for info, name, is_pkg in pkgutil.iter_modules()
+               if is_pkg and
+               not info.path.endswith(('site-packages', 'dist_packages',
+                                       'lib-dynload'))  # lib-dynload for unix.
+               and not info.path.rsplit("/", 1)[-1].startswith('python')}
         for pkg_name, env_path in env.items():
-            repo = Repo(env_path, search_parent_directories=True)
-            self.schema_log.debug(f"{pkg_name} on branch {repo.active_branch} at "
-                           f"{repo.head.object.hexsha}")
-            if repo.is_dirty():
+            #print(pkg_name, env_path)
+            repo = Repository(env_path)  # will search parent directories
+            self.schema_log.debug(f"{pkg_name} on branch {repo.head.name} at "
+                                  f"{repo.head.target}")
+            # Log dirty repositories.
+            if repo.status(untracked_files="no"):  # ignore untracked files.
                 self.schema_log.error(f"{pkg_name} has uncommitted changes.")
 
     def log_runtime_estimate(self):
