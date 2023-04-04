@@ -5,7 +5,7 @@ import shutil
 from contextlib import contextmanager
 import datetime
 from functools import wraps
-from pygit2 import Repository
+from pygit2 import Repository, GitError
 from logging import Logger, FileHandler, Formatter
 from spim_core.operations.dict_formatter import DictFormatter
 from math import ceil
@@ -57,16 +57,21 @@ class Spim:
         env = {name: info.path for info, name, is_pkg in pkgutil.iter_modules()
                if is_pkg and
                not info.path.endswith(('site-packages', 'dist_packages',
-                                       'lib-dynload'))  # lib-dynload for unix.
+                                       'lib-dynload', # lib-dynload for unix.
+                                       'lib'))  # lib for windows.
                and not info.path.rsplit("/", 1)[-1].startswith('python')}
         for pkg_name, env_path in env.items():
             #print(pkg_name, env_path)
-            repo = Repository(env_path)  # will search parent directories
-            self.schema_log.debug(f"{pkg_name} on branch {repo.head.name} at "
-                                  f"{repo.head.target}")
-            # Log dirty repositories.
-            if repo.status(untracked_files="no"):  # ignore untracked files.
-                self.schema_log.error(f"{pkg_name} has uncommitted changes.")
+            try:
+                repo = Repository(env_path)  # will search parent directories
+                self.schema_log.debug(f"{pkg_name} on branch {repo.head.name} at "
+                                      f"{repo.head.target}")
+                # Log dirty repositories.
+                if repo.status(untracked_files="no"):  # ignore untracked files.
+                    self.schema_log.error(f"{pkg_name} has uncommitted changes.")
+            except GitError:
+                self.log.error(f"Could not record git hash of {pkg_name}.")
+
 
     def log_runtime_estimate(self):
         """Log how much time the configured imaging run will take."""
