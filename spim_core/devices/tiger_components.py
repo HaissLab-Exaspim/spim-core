@@ -46,7 +46,7 @@ class Pose:
             i.e: `axis_map[<sample_frame_axis>] = <tiger_frame_axis>`.
         """
         self.tigerbox = tigerbox
-        self.tiger_joystick_mapping = {}  # Local copy for restoring it later.
+        self.tiger_joystick_mapping = self.tigerbox.get_joystick_axis_mapping()
         self.axes = []  # list of strings for this Pose's moveable axes in tiger frame.
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
         # We assume a bijective axis mapping (one-to-one and onto).
