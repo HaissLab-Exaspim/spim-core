@@ -46,6 +46,7 @@ class Pose:
             i.e: `axis_map[<sample_frame_axis>] = <tiger_frame_axis>`.
         """
         self.tigerbox = tigerbox
+        self.tiger_joystick_mapping = self.tigerbox.get_joystick_axis_mapping()
         self.axes = []  # list of strings for this Pose's moveable axes in tiger frame.
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
         # We assume a bijective axis mapping (one-to-one and onto).
@@ -309,11 +310,16 @@ class Pose:
 
     def lock_external_user_input(self):
         self.log.info("Locking joystick control.")
+        # Save current joystick axis map, since enabling it will restore
+        # a "default" axis map, which isn't necessarily what we want.
+        self.tiger_joystick_mapping = self.tigerbox.get_joystick_axis_mapping()
         self.tigerbox.disable_joystick_inputs()
 
     def unlock_external_user_input(self):
         self.log.info("Releasing joystick control.")
         self.tigerbox.enable_joystick_inputs()
+        # Re-apply our joystick axis map to restore joystick state correctly.
+        self.tigerbox.bind_axis_to_joystick_input(**self.tiger_joystick_mapping)
 
 
 class CameraPose(Pose):
