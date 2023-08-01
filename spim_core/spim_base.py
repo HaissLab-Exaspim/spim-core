@@ -134,7 +134,7 @@ class Spim:
             self.log.info(f"Creating dataset folder in: {self.cache_storage_dir.absolute()}")
             self.cache_storage_dir.mkdir(parents=True, exist_ok=overwrite)
         output_folder = None
-        if self.cfg.ext_storage_dir is not None:
+        if self.cfg.ext_storage_dir is not None and self.cfg.ext_storage_dir != self.cfg.local_storage_dir:
             output_folder = \
                 self.cfg.ext_storage_dir / Path(self.cfg.subject_id + "-ID_" + date_time_string)
             if output_folder.exists() and not overwrite:
