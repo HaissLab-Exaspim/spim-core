@@ -337,7 +337,7 @@ class SamplePose(Pose):
         self.axes = ['X', 'Y', 'Z']
 
     def move_absolute(self, x=None, y=None, z=None, wait: bool = True):
-        # Only specify Non-None axes that we want to move.
+        # Only specify Non-None axes that we want to move
         axes = {arg: val for arg, val in locals().items()
                 if arg.upper() in self.axes and val is not None}
         super()._move_absolute(wait, **axes)

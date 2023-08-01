@@ -187,7 +187,7 @@ class SpimConfig(TomlConfig):
         provisioned to image with. It is not the subset of wavelengths used for
         imaging. Use :meth:`channels` for just the channels used for imaging.
         """
-        return [int(nm) for nm in self.cfg['channel_specs'].keys()]
+        return [int(nm) for nm in self.cfg['channel_specs'].keys() if nm.isdigit()]
 
     @property
     def subject_id(self):
