@@ -141,6 +141,7 @@ class Spim:
                 self.log.error(f"Output folder {output_folder.absolute()} exists. "
                                "This function must be rerun with overwrite=True.")
                 raise
+            self.local_storage_dir = self.cache_storage_dir
             self.img_storage_dir = output_folder / Path("micr/")
             self.deriv_storage_dir = output_folder / Path("derivatives/")
             self.log.info(f"Creating dataset folder in: {output_folder.absolute()}")
