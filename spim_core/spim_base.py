@@ -46,6 +46,7 @@ class Spim:
         # Location where images will be saved to from a config-based run.
         # We don't know this in advance since we create the folder at runtime.
         # TODO: consider getting these from the config.
+        self.local_storage_dir = None
         self.img_storage_dir = None  # folder for image stacks.
         self.deriv_storage_dir = None  # folder for derivative files (MIPs).
         self.cache_storage_dir = None # folder for streaming data
@@ -124,7 +125,7 @@ class Spim:
         # checks and leave it undefined. Data will be written to local storage
         # folder.
         date_time_string = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        if self.cfg.local_storage_dir is not None:
+        if self.cfg.local_storage_dir is not None and self.cfg.ext_storage_dir != self.cfg.local_storage_dir:
             self.cache_storage_dir = \
                 self.cfg.local_storage_dir / Path(self.cfg.subject_id + "-ID_" + date_time_string)
             if self.cache_storage_dir.exists() and not overwrite:
@@ -133,6 +134,7 @@ class Spim:
                 raise
             self.log.info(f"Creating dataset folder in: {self.cache_storage_dir.absolute()}")
             self.cache_storage_dir.mkdir(parents=True, exist_ok=overwrite)
+            self.local_storage_dir = self.cache_storage_dir
         output_folder = None
         if self.cfg.ext_storage_dir is not None and self.cfg.ext_storage_dir != self.cfg.local_storage_dir:
             output_folder = \
@@ -141,7 +143,6 @@ class Spim:
                 self.log.error(f"Output folder {output_folder.absolute()} exists. "
                                "This function must be rerun with overwrite=True.")
                 raise
-            self.local_storage_dir = self.cache_storage_dir
             self.img_storage_dir = output_folder / Path("micr/")
             self.deriv_storage_dir = output_folder / Path("derivatives/")
             self.log.info(f"Creating dataset folder in: {output_folder.absolute()}")
@@ -149,10 +150,22 @@ class Spim:
             self.deriv_storage_dir.mkdir(parents=True, exist_ok=overwrite)
             # Save the config file we will run.
             self.cfg.save(output_folder, overwrite=overwrite)
-        else:
-            self.log.warning("External storage directory unspecified. Files "
-                             f"will remain at {self.cfg.local_storage_dir}."
-                             f"Any existing files will be overwritten.")
+
+        if self.cfg.ext_storage_dir == self.cfg.local_storage_dir:
+            self.log.warning("External and local storage directories are the same. Files "
+                             f"will remain at {self.cfg.local_storage_dir}.")
+
+            output_folder = self.cfg.local_storage_dir / Path(self.cfg.subject_id + "-ID_" + date_time_string)
+            self.img_storage_dir = None
+            self.local_storage_dir = output_folder / Path("micr/")
+            self.deriv_storage_dir = output_folder / Path("derivatives/")
+            self.log.info(f"Creating dataset folder in: {output_folder.absolute()}")
+            self.local_storage_dir.mkdir(parents=True, exist_ok=overwrite)
+            self.deriv_storage_dir.mkdir(parents=True, exist_ok=overwrite)
+            # Save the config file we will run.
+            self.cfg.save(output_folder, overwrite=overwrite)
+
+
         # Log to a file for the duration of this function's execution.
         # TODO: names should be constants.
         imaging_log_filepath = Path("imaging_log.log")
@@ -163,6 +176,9 @@ class Spim:
                 with self.log_to_file(schema_log_filepath, None,
                                       DictFormatter, AINDSchemaFilter):
                     self.log_git_hashes()
+                    print('trying to run from config')
+                    print(self.local_storage_dir)
+                    print(self.img_storage_dir)
                     self.run_from_config()
         finally:  # Transfer log file to output folder, even on failure.
             # Bail early if file does not need to be transferred.
