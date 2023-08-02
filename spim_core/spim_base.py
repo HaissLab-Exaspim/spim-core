@@ -176,9 +176,6 @@ class Spim:
                 with self.log_to_file(schema_log_filepath, None,
                                       DictFormatter, AINDSchemaFilter):
                     self.log_git_hashes()
-                    print('trying to run from config')
-                    print(self.local_storage_dir)
-                    print(self.img_storage_dir)
                     self.run_from_config()
         finally:  # Transfer log file to output folder, even on failure.
             # Bail early if file does not need to be transferred.
