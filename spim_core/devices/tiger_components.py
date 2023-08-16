@@ -30,7 +30,7 @@ class FilterWheel:
         cmd_str = f"MP {index}\r\n"
         self.log.debug(f"FW{self.tiger_axis} move to index: {index}.")
         # Note: the filter wheel has slightly different reply line termination.
-        self.tigerbox.send("FW 1\r\n", read_until=f"\n\r{self.tiger_axis}>")
+        self.tigerbox.send(f"FW {self.tiger_axis}\r\n", read_until=f"\n\r{self.tiger_axis}>")
         self.tigerbox.send(cmd_str, read_until=f"\n\r{self.tiger_axis}>")
         # TODO: add "busy" check because tigerbox.is_moving() doesn't apply to filter wheels.
 
