@@ -14,7 +14,7 @@ from spim_core.operations.aind_schema_filter import AINDSchemaFilter
 from math import ceil
 from pathlib import Path
 from typing import Union
-
+from psutil import virtual_memory
 
 def lock_external_user_input(func):
     """Disable any manual hardware user inputs if possible."""
@@ -112,6 +112,56 @@ class Spim:
         finally:
             log_handler.close()
             logger.removeHandler(log_handler)
+
+    def check_ext_disk_space(self, xtiles, ytiles, ztiles):
+        """Checks ext disk space before scan to see if disk has enough space scan
+
+        :param xtiles: number of x tiles
+        :param ytiles: number of y tiles
+        :param ztiles: number of z tiles
+        """
+        # One tile (tiff) is ~10368 kb
+        est_stack_filesize = self.cfg.bytes_per_image * ztiles
+        est_scan_filesize = est_stack_filesize*xtiles*ytiles
+        if est_scan_filesize >= shutil.disk_usage(self.cfg.ext_storage_dir).free:
+            self.log.error("Not enough space in external directory")
+            raise
+
+    def check_local_disk_space(self, z_tiles):
+        """Checks local disk space before scan to see if disk has enough space for two stacks
+
+           :param z_tiles: number of z tiles
+        """
+
+        est_filesize = self.cfg.bytes_per_image * z_tiles
+        if est_filesize * 2 >= shutil.disk_usage(self.cfg.local_storage_dir).free:
+            self.log.error("Not enough space on disk. Is the recycle bin empty?")
+            raise
+
+    def _check_system_memory_resources(self, channel_count: int,
+                                       mem_chunk: int):
+        """Make sure this machine can image under the specified configuration.
+
+        :param channel_count: the number of channels we want to image with.
+        :param mem_chunk: the number of images to hold in one chunk for
+            compression
+        :raises MemoryError:
+        """
+        # Calculate double buffer size for all channels.
+        bytes_per_gig = (1024 ** 3)
+        used_mem_gigabytes = \
+            ((self.cfg.bytes_per_image * mem_chunk * 2) / bytes_per_gig) \
+            * channel_count
+        # TODO: we probably want to throw in 1-2gigs of fudge factor.
+        free_mem_gigabytes = virtual_memory()[1] / bytes_per_gig
+        if free_mem_gigabytes < used_mem_gigabytes:
+            raise MemoryError("System does not have enough memory to run "
+                              "the specified number of channels. "
+                              f"{used_mem_gigabytes:.1f}[GB] are required but "
+                              f"{free_mem_gigabytes:.1f}[GB] are available.")
+
+    def check_write_speed(self):
+        """Check write speed to make sure data writing can keep up"""
 
     def run(self, overwrite: bool = False):
         """Collect data according to config; populate dest folder with data.
