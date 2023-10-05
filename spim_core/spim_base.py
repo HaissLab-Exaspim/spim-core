@@ -15,7 +15,8 @@ from math import ceil
 from pathlib import Path
 from typing import Union
 from psutil import virtual_memory
-
+import subprocess
+import os
 def lock_external_user_input(func):
     """Disable any manual hardware user inputs if possible."""
     @wraps(func)
@@ -138,6 +139,55 @@ class Spim:
             self.log.error("Not enough space on disk. Is the recycle bin empty?")
             raise
 
+    def check_read_write_speeds(self, drive: Path):
+        """Check local read/write speeds to make sure it can keep up with acquisition
+
+        :param drive: drive you are testing read/write speeds. Usually the local or external storage of instrument
+        """
+
+        test_filename = fr"{drive}\test.txt"
+        f = open(test_filename, 'x')  # Create empty file to check reading/writing speed
+        f.close()
+        try:
+            read_output = subprocess.check_output(
+                fr'fio --name=test --filename={test_filename} --size=16Gb --rw=read --bs=1M '
+                r'--direct=1 --numjobs=1 --ioengine=windowsaio --iodepth=1 --runtime=0 --startdelay=0 '
+                r'--thread --group_reporting', shell=True)
+            read_output = str(read_output)
+            read_speed_MB_s = round(float(read_output[read_output.find('read: IOPS=') + len('read: IOPS='):
+                                                      read_output.find(', BW')]) /.9537)
+            print(read_speed_MB_s)
+            write_output = subprocess.check_output(
+                fr'fio --name=test --filename={test_filename} --size=16Gb --rw=write --bs=1M '
+                r'--direct=1 --numjobs=1 --ioengine=windowsaio --iodepth=1 --runtime=0 --startdelay=0 '
+                r'--thread --group_reporting', shell=True)
+            write_output = str(write_output)
+            write_speed_MB_s = round(float(write_output[write_output.find('write: IOPS=') + len('write: IOPS='):
+                                                        write_output.find(', BW')])/.9537)
+            print(write_speed_MB_s)
+            # converting B/s to MB/s
+            acq_speed_MB_s = (self.cfg.bytes_per_image*(1/1000000)) * (1/self.cfg.get_period_time())
+            print(acq_speed_MB_s)
+            # Delete test file
+            os.remove(test_filename)
+
+            # Go through both speeds and specify if one or both are teh problem
+            read_too_slow = False
+            write_too_slow = False
+
+            if read_speed_MB_s <= acq_speed_MB_s:
+                read_too_slow = True
+                self.log.warning(f'{drive} read speed too slow')
+
+            if write_speed_MB_s <= acq_speed_MB_s:
+                write_too_slow = True
+                self.log.warning(f'{drive} write speed too slow')
+
+            if read_too_slow or write_too_slow:
+                raise
+        except subprocess.CalledProcessError:
+            self.log.warning('fios not installed on computer. Cannot verify read/write speed')
+
     def _check_system_memory_resources(self, channel_count: int,
                                        mem_chunk: int):
         """Make sure this machine can image under the specified configuration.
@@ -159,9 +209,6 @@ class Spim:
                               "the specified number of channels. "
                               f"{used_mem_gigabytes:.1f}[GB] are required but "
                               f"{free_mem_gigabytes:.1f}[GB] are available.")
-
-    def check_write_speed(self):
-        """Check write speed to make sure data writing can keep up"""
 
     def run(self, overwrite: bool = False):
         """Collect data according to config; populate dest folder with data.
