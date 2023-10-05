@@ -149,37 +149,32 @@ class Spim:
         f = open(test_filename, 'x')  # Create empty file to check reading/writing speed
         f.close()
         try:
-            read_output = subprocess.check_output(
-                fr'fio --name=test --filename={test_filename} --size=16Gb --rw=read --bs=1M '
-                r'--direct=1 --numjobs=1 --ioengine=windowsaio --iodepth=1 --runtime=0 --startdelay=0 '
-                r'--thread --group_reporting', shell=True)
-            read_output = str(read_output)
-            read_speed_MB_s = round(float(read_output[read_output.find('read: IOPS=') + len('read: IOPS='):
-                                                      read_output.find(', BW')]) /.9537)
-            print(read_speed_MB_s)
-            write_output = subprocess.check_output(
-                fr'fio --name=test --filename={test_filename} --size=16Gb --rw=write --bs=1M '
-                r'--direct=1 --numjobs=1 --ioengine=windowsaio --iodepth=1 --runtime=0 --startdelay=0 '
-                r'--thread --group_reporting', shell=True)
-            write_output = str(write_output)
-            write_speed_MB_s = round(float(write_output[write_output.find('write: IOPS=') + len('write: IOPS='):
-                                                        write_output.find(', BW')])/.9537)
-            print(write_speed_MB_s)
+            speed_MB_s = {}
+            for check in ['read', 'write']:
+                output = subprocess.check_output(
+                    fr'fio --name=test --filename={test_filename} --size=16Gb --rw={check} --bs=1M '
+                    r'--direct=1 --numjobs=1 --ioengine=windowsaio --iodepth=1 --runtime=0 --startdelay=0 '
+                    r'--thread --group_reporting', shell=True)
+                output = str(output)
+                speed_MB_s[check] = round(float(output[output.find(f'{check}: IOPS=') + len(f'{check}: IOPS='):
+                                                      output.find(', BW')]) /.9537)
+                print(check, speed_MB_s[check])
+
             # converting B/s to MB/s
             acq_speed_MB_s = (self.cfg.bytes_per_image*(1/1000000)) * (1/self.cfg.get_period_time())
             print(acq_speed_MB_s)
             # Delete test file
             os.remove(test_filename)
 
-            # Go through both speeds and specify if one or both are teh problem
+            # Go through both speeds and specify if one or both are the problem
             read_too_slow = False
             write_too_slow = False
 
-            if read_speed_MB_s <= acq_speed_MB_s:
+            if speed_MB_s['read'] <= acq_speed_MB_s:
                 read_too_slow = True
                 self.log.warning(f'{drive} read speed too slow')
 
-            if write_speed_MB_s <= acq_speed_MB_s:
+            if speed_MB_s['write'] <= acq_speed_MB_s:
                 write_too_slow = True
                 self.log.warning(f'{drive} write speed too slow')
 
