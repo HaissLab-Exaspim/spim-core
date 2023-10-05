@@ -158,11 +158,9 @@ class Spim:
                 output = str(output)
                 speed_MB_s[check] = round(float(output[output.find(f'{check}: IOPS=') + len(f'{check}: IOPS='):
                                                       output.find(', BW')]) /.9537)
-                print(check, speed_MB_s[check])
 
             # converting B/s to MB/s
             acq_speed_MB_s = (self.cfg.bytes_per_image*(1/1000000)) * (1/self.cfg.get_period_time())
-            print(acq_speed_MB_s)
             # Delete test file
             os.remove(test_filename)
 
