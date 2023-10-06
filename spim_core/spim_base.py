@@ -146,7 +146,7 @@ class Spim:
         """
 
         test_filename = fr"{drive}\test.txt"
-        f = open(test_filename, 'x')  # Create empty file to check reading/writing speed
+        f = open(test_filename, 'a')  # Create empty file to check reading/writing speed
         f.close()
         try:
             speed_MB_s = {}
@@ -157,7 +157,7 @@ class Spim:
                     r'--thread --group_reporting', shell=True)
                 output = str(output)
                 speed_MB_s[check] = round(float(output[output.find(f'{check}: IOPS=') + len(f'{check}: IOPS='):
-                                                      output.find(', BW')]) /.9537)
+                                                      output.find(', BW')]) /.9537)     # TODO: Why are we doing this?
 
             # converting B/s to MB/s
             acq_speed_MB_s = (self.cfg.bytes_per_image*(1/1000000)) * (1/self.cfg.get_period_time())
