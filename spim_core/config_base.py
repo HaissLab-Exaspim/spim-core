@@ -146,18 +146,28 @@ class SpimConfig(TomlConfig):
         if z_step_size_um is None:
             self.log.warning("Z Step Size not listed. Defaulting to an "
                              f"isotropic step size of {self.x_voxel_size_um}")
+        # Error if local storage dir is unspecified.
+        try:
+            _ = self.local_storage_dir  # Test access.
+        except KeyError:
+            msg = f"Local storage directory is not defined."
+            self.log.error(msg)
+            error_msgs.append(msg)
         # Warn on no external storage dir.
-        if self.ext_storage_dir == self.local_storage_dir:
+        if self.ext_storage_dir is None:
             self.log.warning("Output storage directory unspecified. Data will "
                              f"be saved to {self.ext_storage_dir.resolve()}.")
         # TODO: Throw error on out-of-bounds stage x, y, or z movement.
-        # TODO: finish refactor.
-        assert 0 < self.tile_overlap_x_percent < 100, \
-            f"Error: Specified x overlap ({self.tile_overlap_x_percent}) " \
-            "is out of bounds."
-        assert 0 < self.tile_overlap_y_percent < 100, \
-            f"Error: Specified x overlap ({self.tile_overlap_x_percent}) " \
-            "is out of bounds."
+        if not (0 < self.tile_overlap_x_percent < 100):
+            msg = f"Error: Specified x overlap ({self.tile_overlap_x_percent}) " \
+                  "is out of bounds."
+            self.log.error(msg)
+            error_msgs.append(msg)
+        if not (0 < self.tile_overlap_y_percent < 100):
+            msg = f"Error: Specified x overlap ({self.tile_overlap_x_percent}) " \
+                  "is out of bounds."
+            self.log.error(msg)
+            error_msgs.append(msg)
 
         # Create a big error message at the end.
         if len(error_msgs):
