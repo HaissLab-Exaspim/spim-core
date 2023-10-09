@@ -155,9 +155,9 @@ class Spim:
                     fr'fio --name=test --filename={test_filename} --size=16Gb --rw={check} --bs=1M '
                     r'--direct=1 --numjobs=1 --ioengine=windowsaio --iodepth=1 --runtime=0 --startdelay=0 '
                     r'--thread --group_reporting', shell=True)
-                output = str(output)
-                speed_MB_s[check] = round(float(output[output.find(f'{check}: IOPS=') + len(f'{check}: IOPS='):
-                                                      output.find(', BW')]) /.9537)     # TODO: Why are we doing this?
+                out = str(output)
+                speed_MB_s[check] = round(float(out[out.find('BW=') + len('BW='):out.find('MiB/s')])/(10**6/2**20))
+
 
             # converting B/s to MB/s
             acq_speed_MB_s = (self.cfg.bytes_per_image*(1/1000000)) * (1/self.cfg.get_period_time())
