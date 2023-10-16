@@ -14,6 +14,9 @@ from spim_core.operations.aind_schema_filter import AINDSchemaFilter
 from math import ceil
 from pathlib import Path
 from typing import Union
+from psutil import virtual_memory
+import subprocess
+import os
 
 
 def lock_external_user_input(func):
@@ -109,6 +112,106 @@ class Spim:
         finally:
             log_handler.close()
             logger.removeHandler(log_handler)
+
+    def check_ext_disk_space(self, xtiles, ytiles, ztiles):
+        """Checks ext disk space before scan to see if disk has enough space scan
+
+        :param xtiles: number of x tiles
+        :param ytiles: number of y tiles
+        :param ztiles: number of z tiles
+        """
+        # One tile (tiff) is ~10368 kb
+        est_stack_filesize = self.cfg.bytes_per_image * ztiles
+        est_scan_filesize = est_stack_filesize * xtiles * ytiles
+        if est_scan_filesize >= shutil.disk_usage(self.cfg.ext_storage_dir).free:
+            self.log.error("Not enough space in external directory")
+            raise
+
+    def check_local_disk_space(self, z_tiles):
+        """Checks local disk space before scan to see if disk has enough space for two stacks
+
+           :param z_tiles: number of z tiles
+        """
+
+        est_filesize = self.cfg.bytes_per_image * z_tiles
+        if est_filesize * 2 >= shutil.disk_usage(self.cfg.local_storage_dir).free:
+            self.log.error("Not enough space on disk. Is the recycle bin empty?")
+            raise
+
+    def check_read_write_speeds(self, drive: Path, size='16Gb', bs='1M', direct=1, numjobs=1, ioengine= 'windowsaio',
+                                iodepth=1, runtime=0):
+        """Check local read/write speeds to make sure it can keep up with acquisition
+
+        :param drive: Drive testing read/write speeds. Usually the local or external storage of instrument
+        :param size: Size of test file
+        :param bs: Block size in bytes used for I/O units
+        :param direct: Specifying buffered (0) or unbuffered (1) operation
+        :param numjobs: Number of clones of this job. Each clone of job is spawned as an independent thread or process
+        :param ioengine: Defines how the job issues I/O to the file
+        :param iodepth: Number of I/O units to keep in flight against the file.
+        :param runtime: Limit runtime. The test will run until it completes the configured I/O workload or until it has
+                        run for this specified amount of time, whichever occurs first
+        """
+
+        test_filename = fr"{drive}\test.txt"
+        f = open(test_filename, 'a')  # Create empty file to check reading/writing speed
+        f.close()
+        try:
+            speed_MB_s = {}
+            for check in ['read', 'write']:
+                output = subprocess.check_output(
+                    fr'fio --name=test --filename={test_filename} --size={size} --rw={check} --bs={bs} '
+                    fr'--direct={direct} --numjobs={numjobs} --ioengine={ioengine} --iodepth={iodepth} '
+                    fr'--runtime={runtime} --startdelay=0 --thread --group_reporting', shell=True)
+                out = str(output)
+                # Converting MiB to MB = (10**6/2**20)
+                speed_MB_s[check] = round(
+                    float(out[out.find('BW=') + len('BW='):out.find('MiB/s')]) / (10 ** 6 / 2 ** 20))
+
+            # converting B/s to MB/s
+            acq_speed_MB_s = (self.cfg.bytes_per_image * (1 / 1000000)) * (1 / self.cfg.get_period_time())
+
+            # Go through both speeds and specify if one or both are the problem
+            read_too_slow = False
+            write_too_slow = False
+
+            if speed_MB_s['read'] <= acq_speed_MB_s:
+                read_too_slow = True
+                self.log.warning(f'{drive} read speed too slow')
+
+            if speed_MB_s['write'] <= acq_speed_MB_s:
+                write_too_slow = True
+                self.log.warning(f'{drive} write speed too slow')
+
+            if read_too_slow or write_too_slow:
+                raise
+        except subprocess.CalledProcessError:
+            self.log.warning('fios not installed on computer. Cannot verify read/write speed')
+        finally:
+            # Delete test file
+            os.remove(test_filename)
+
+    def _check_system_memory_resources(self, channel_count: int,
+                                       mem_chunk: int):
+        """Make sure this machine can image under the specified configuration.
+
+        :param channel_count: the number of channels we want to image with.
+        :param mem_chunk: the number of images to hold in one chunk for
+            compression
+        :raises MemoryError:
+        """
+        # Calculate double buffer size for all channels.
+        bytes_per_gig = (1024 ** 3)
+        used_mem_gigabytes = \
+            ((self.cfg.bytes_per_image * mem_chunk * 2) / bytes_per_gig) \
+            * channel_count
+        # TODO: we probably want to throw in 1-2gigs of fudge factor.
+        free_mem_gigabytes = virtual_memory()[1] / bytes_per_gig
+        if free_mem_gigabytes < used_mem_gigabytes:
+            raise MemoryError("System does not have enough memory to run "
+                              "the specified number of channels. "
+                              f"{used_mem_gigabytes:.1f}[GB] are required but "
+                              f"{free_mem_gigabytes:.1f}[GB] are available.")
 
     def run(self, overwrite: bool = False):
         """Collect data according to config; populate dest folder with data.
