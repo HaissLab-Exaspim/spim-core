@@ -21,7 +21,6 @@ import os
 
 def lock_external_user_input(func):
     """Disable any manual hardware user inputs if possible."""
-
     @wraps(func)
     def inner(self, *args, **kwds):
         # Lock user inputs.
@@ -31,7 +30,6 @@ def lock_external_user_input(func):
         finally:
             # Unlock user inputs.
             self.unlock_external_user_input()
-
     return inner
 
 
@@ -48,14 +46,12 @@ class Spim:
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.schema_log = logging.getLogger(
             f"{__name__}.{self.__class__.__name__}.schema")
-        # Location where images will be saved to from a config-based run.
-        # We don't know this in advance since we create the folder at runtime.
-        # TODO: consider getting these from the config.
-        self.local_storage_dir = None
-        self.img_storage_dir = None  # folder for image stacks.
-        self.deriv_storage_dir = None  # folder for derivative files (MIPs).
-        self.cache_storage_dir = None  # folder for streaming data
-
+        # We don't know the following folder paths in advance since we create
+        # the top folder at runtime based on current date/time.
+        self.cache_storage_dir = None  # temp folder for holding image stacks.
+        self.img_storage_dir = None  # destination folder for all image stacks.
+        self.deriv_storage_dir = None  # destination folder for derivative
+                                       # files (MIPs).
         # Config. This will get defined in the child class.
         self.cfg = None
 
@@ -67,11 +63,11 @@ class Spim:
         env = {name: info.path for info, name, is_pkg in pkgutil.iter_modules()
                if is_pkg and
                not info.path.endswith(('site-packages', 'dist_packages',
-                                       'lib-dynload',  # lib-dynload for unix.
+                                       'lib-dynload', # lib-dynload for unix.
                                        'lib'))  # lib for windows.
                and not info.path.rsplit("/", 1)[-1].startswith('python')}
         for pkg_name, env_path in env.items():
-            # print(pkg_name, env_path)
+            #print(pkg_name, env_path)
             try:
                 repo = Repository(env_path)  # will search parent directories
                 self.schema_log.debug(f"{pkg_name} on branch {repo.head.name} at "
@@ -229,45 +225,40 @@ class Spim:
         # checks and leave it undefined. Data will be written to local storage
         # folder.
         date_time_string = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        if self.cfg.local_storage_dir is not None and self.cfg.ext_storage_dir != self.cfg.local_storage_dir:
-            self.cache_storage_dir = \
-                self.cfg.local_storage_dir / Path(self.cfg.subject_id + "-ID_" + date_time_string)
-            if self.cache_storage_dir.exists() and not overwrite:
-                self.log.error(f"Local folder {self.cache_storage_dir.absolute()} exists. "
-                               "This function must be rerun with overwrite=True.")
-                raise
-            self.log.info(f"Creating dataset folder in: {self.cache_storage_dir.absolute()}")
+        # Assume self.cfg.local_storage_dir exists if we passed sanity check.
+        top_folder_name = Path(self.cfg.subject_id + "-ID_" + date_time_string)
+        # Create required local folder structure.
+        local_storage_dir = self.cfg.local_storage_dir / top_folder_name
+        if local_storage_dir.exists() and not overwrite:
+            self.log.error(f"Local folder {local_storage_dir.absolute()} exists. "
+                           "This function must be rerun with overwrite=True.")
+            raise
+        # Create cache subfolder.
+        self.cache_storage_dir = local_storage_dir / Path("micr/")
+        self.log.info(f"Creating cache dataset folder in: "
+                      f"{self.cache_storage_dir.absolute()}")
+        # Create required external folder structure.
+        output_dir = None
+        if self.cfg.ext_storage_dir is None:
+            output_dir = local_storage_dir
+        elif self.cfg.local_storage_dir == self.cfg.ext_storage_dir:
+            output_dir = local_storage_dir
+        else:
+            # Only make local storage if different then external drive
             self.cache_storage_dir.mkdir(parents=True, exist_ok=overwrite)
-            self.local_storage_dir = self.cache_storage_dir
-        output_folder = None
-        if self.cfg.ext_storage_dir is not None and self.cfg.ext_storage_dir != self.cfg.local_storage_dir:
-            output_folder = \
-                self.cfg.ext_storage_dir / Path(self.cfg.subject_id + "-ID_" + date_time_string)
-            if output_folder.exists() and not overwrite:
-                self.log.error(f"Output folder {output_folder.absolute()} exists. "
+            output_dir = self.cfg.ext_storage_dir / top_folder_name
+            if output_dir.exists() and not overwrite:
+
+                self.log.error(f"Output folder {output_dir.absolute()} exists. "
                                "This function must be rerun with overwrite=True.")
                 raise
-            self.img_storage_dir = output_folder / Path("micr/")
-            self.deriv_storage_dir = output_folder / Path("derivatives/")
-            self.log.info(f"Creating dataset folder in: {output_folder.absolute()}")
-            self.img_storage_dir.mkdir(parents=True, exist_ok=overwrite)
-            self.deriv_storage_dir.mkdir(parents=True, exist_ok=overwrite)
-            # Save the config file we will run.
-            self.cfg.save(output_folder, overwrite=overwrite)
-
-        if self.cfg.ext_storage_dir == self.cfg.local_storage_dir:
-            self.log.warning("External and local storage directories are the same. Files "
-                             f"will remain at {self.cfg.local_storage_dir}.")
-
-            output_folder = self.cfg.local_storage_dir / Path(self.cfg.subject_id + "-ID_" + date_time_string)
-            self.img_storage_dir = None
-            self.local_storage_dir = output_folder / Path("micr/")
-            self.deriv_storage_dir = output_folder / Path("derivatives/")
-            self.log.info(f"Creating dataset folder in: {output_folder.absolute()}")
-            self.local_storage_dir.mkdir(parents=True, exist_ok=overwrite)
-            self.deriv_storage_dir.mkdir(parents=True, exist_ok=overwrite)
-            # Save the config file we will run.
-            self.cfg.save(output_folder, overwrite=overwrite)
+        self.log.info(f"Creating dataset folder in: {output_dir.absolute()}")
+        self.img_storage_dir = output_dir / Path("micr/")
+        self.deriv_storage_dir = output_dir / Path("derivatives/")
+        self.img_storage_dir.mkdir(parents=True, exist_ok=overwrite)
+        self.deriv_storage_dir.mkdir(parents=True, exist_ok=overwrite)
+        # Save the config file we will run to the destination directory.
+        self.cfg.save(output_dir, overwrite=overwrite)
 
         # Log to a file for the duration of this function's execution.
         # TODO: names should be constants.
@@ -282,19 +273,19 @@ class Spim:
                     self.run_from_config()
         finally:  # Transfer log file to output folder, even on failure.
             # Bail early if file does not need to be transferred.
-            if output_folder in [Path("."), None]:
+            if output_dir in [Path("."), None]:
                 return
             # Note: shutil can't overwrite, so we must delete any prior imaging
             #   log in the destination folder if we are overwriting.
-            imaging_log_dest = output_folder / Path(imaging_log_filepath.name)
+            imaging_log_dest = output_dir/Path(imaging_log_filepath.name)
             if overwrite and imaging_log_dest.exists():
                 imaging_log_dest.unlink()
-            schema_log_dest = output_folder / Path(schema_log_filepath.name)
+            schema_log_dest = output_dir/Path(schema_log_filepath.name)
             if overwrite and schema_log_dest.exists():
                 schema_log_dest.unlink()
             # We must use shutil because we may be moving files across disks.
-            shutil.move(str(imaging_log_filepath), str(output_folder))
-            shutil.move(str(schema_log_filepath), str(output_folder))
+            shutil.move(str(imaging_log_filepath), str(output_dir))
+            shutil.move(str(schema_log_filepath), str(output_dir))
 
     def get_xy_grid_step(self, tile_overlap_x_percent: float,
                          tile_overlap_y_percent: float):
@@ -302,9 +293,9 @@ class Spim:
         # Compute: micrometers per grid step. At 0 tile overlap, this is just
         # the sensor's field of view.
         x_grid_step_um = \
-            (1 - tile_overlap_x_percent / 100.0) * self.cfg.tile_size_x_um
+            (1 - tile_overlap_x_percent/100.0) * self.cfg.tile_size_x_um
         y_grid_step_um = \
-            (1 - tile_overlap_y_percent / 100.0) * self.cfg.tile_size_y_um
+            (1 - tile_overlap_y_percent/100.0) * self.cfg.tile_size_y_um
         return x_grid_step_um, y_grid_step_um
 
     def get_tile_counts(self, tile_overlap_x_percent: float,
