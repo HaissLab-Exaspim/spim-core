@@ -17,8 +17,11 @@ from typing import Union
 from psutil import virtual_memory
 import subprocess
 import os
+
+
 def lock_external_user_input(func):
     """Disable any manual hardware user inputs if possible."""
+
     @wraps(func)
     def inner(self, *args, **kwds):
         # Lock user inputs.
@@ -28,6 +31,7 @@ def lock_external_user_input(func):
         finally:
             # Unlock user inputs.
             self.unlock_external_user_input()
+
     return inner
 
 
@@ -50,7 +54,7 @@ class Spim:
         self.local_storage_dir = None
         self.img_storage_dir = None  # folder for image stacks.
         self.deriv_storage_dir = None  # folder for derivative files (MIPs).
-        self.cache_storage_dir = None # folder for streaming data
+        self.cache_storage_dir = None  # folder for streaming data
 
         # Config. This will get defined in the child class.
         self.cfg = None
@@ -63,11 +67,11 @@ class Spim:
         env = {name: info.path for info, name, is_pkg in pkgutil.iter_modules()
                if is_pkg and
                not info.path.endswith(('site-packages', 'dist_packages',
-                                       'lib-dynload', # lib-dynload for unix.
+                                       'lib-dynload',  # lib-dynload for unix.
                                        'lib'))  # lib for windows.
                and not info.path.rsplit("/", 1)[-1].startswith('python')}
         for pkg_name, env_path in env.items():
-            #print(pkg_name, env_path)
+            # print(pkg_name, env_path)
             try:
                 repo = Repository(env_path)  # will search parent directories
                 self.schema_log.debug(f"{pkg_name} on branch {repo.head.name} at "
@@ -77,7 +81,6 @@ class Spim:
                     self.schema_log.error(f"{pkg_name} has uncommitted changes.")
             except GitError:
                 self.log.error(f"Could not record git hash of {pkg_name}.")
-
 
     def log_runtime_estimate(self):
         """Log how much time the configured imaging run will take."""
@@ -123,7 +126,7 @@ class Spim:
         """
         # One tile (tiff) is ~10368 kb
         est_stack_filesize = self.cfg.bytes_per_image * ztiles
-        est_scan_filesize = est_stack_filesize*xtiles*ytiles
+        est_scan_filesize = est_stack_filesize * xtiles * ytiles
         if est_scan_filesize >= shutil.disk_usage(self.cfg.ext_storage_dir).free:
             self.log.error("Not enough space in external directory")
             raise
@@ -139,10 +142,19 @@ class Spim:
             self.log.error("Not enough space on disk. Is the recycle bin empty?")
             raise
 
-    def check_read_write_speeds(self, drive: Path):
+    def check_read_write_speeds(self, drive: Path, size='16Gb', bs='1M', direct=1, numjobs=1, ioengine= 'windowsaio',
+                                iodepth=1, runtime=0):
         """Check local read/write speeds to make sure it can keep up with acquisition
 
-        :param drive: drive you are testing read/write speeds. Usually the local or external storage of instrument
+        :param drive: Drive testing read/write speeds. Usually the local or external storage of instrument
+        :param size: Size of test file
+        :param bs: Block size in bytes used for I/O units
+        :param direct: Specifying buffered (0) or unbuffered (1) operation
+        :param numjobs: Number of clones of this job. Each clone of job is spawned as an independent thread or process
+        :param ioengine: Defines how the job issues I/O to the file
+        :param iodepth: Number of I/O units to keep in flight against the file.
+        :param runtime: Limit runtime. The test will run until it completes the configured I/O workload or until it has
+                        run for this specified amount of time, whichever occurs first
         """
 
         test_filename = fr"{drive}\test.txt"
@@ -152,17 +164,16 @@ class Spim:
             speed_MB_s = {}
             for check in ['read', 'write']:
                 output = subprocess.check_output(
-                    fr'fio --name=test --filename={test_filename} --size=16Gb --rw={check} --bs=1M '
-                    r'--direct=1 --numjobs=1 --ioengine=windowsaio --iodepth=1 --runtime=0 --startdelay=0 '
-                    r'--thread --group_reporting', shell=True)
+                    fr'fio --name=test --filename={test_filename} --size={size} --rw={check} --bs={bs} '
+                    fr'--direct={direct} --numjobs={numjobs} --ioengine={ioengine} --iodepth={iodepth} '
+                    fr'--runtime={runtime} --startdelay=0 --thread --group_reporting', shell=True)
                 out = str(output)
-                speed_MB_s[check] = round(float(out[out.find('BW=') + len('BW='):out.find('MiB/s')])/(10**6/2**20))
-
+                # Converting MiB to MB = (10**6/2**20)
+                speed_MB_s[check] = round(
+                    float(out[out.find('BW=') + len('BW='):out.find('MiB/s')]) / (10 ** 6 / 2 ** 20))
 
             # converting B/s to MB/s
-            acq_speed_MB_s = (self.cfg.bytes_per_image*(1/1000000)) * (1/self.cfg.get_period_time())
-            # Delete test file
-            os.remove(test_filename)
+            acq_speed_MB_s = (self.cfg.bytes_per_image * (1 / 1000000)) * (1 / self.cfg.get_period_time())
 
             # Go through both speeds and specify if one or both are the problem
             read_too_slow = False
@@ -180,6 +191,9 @@ class Spim:
                 raise
         except subprocess.CalledProcessError:
             self.log.warning('fios not installed on computer. Cannot verify read/write speed')
+        finally:
+            # Delete test file
+            os.remove(test_filename)
 
     def _check_system_memory_resources(self, channel_count: int,
                                        mem_chunk: int):
@@ -255,7 +269,6 @@ class Spim:
             # Save the config file we will run.
             self.cfg.save(output_folder, overwrite=overwrite)
 
-
         # Log to a file for the duration of this function's execution.
         # TODO: names should be constants.
         imaging_log_filepath = Path("imaging_log.log")
@@ -273,10 +286,10 @@ class Spim:
                 return
             # Note: shutil can't overwrite, so we must delete any prior imaging
             #   log in the destination folder if we are overwriting.
-            imaging_log_dest = output_folder/Path(imaging_log_filepath.name)
+            imaging_log_dest = output_folder / Path(imaging_log_filepath.name)
             if overwrite and imaging_log_dest.exists():
                 imaging_log_dest.unlink()
-            schema_log_dest = output_folder/Path(schema_log_filepath.name)
+            schema_log_dest = output_folder / Path(schema_log_filepath.name)
             if overwrite and schema_log_dest.exists():
                 schema_log_dest.unlink()
             # We must use shutil because we may be moving files across disks.
@@ -289,9 +302,9 @@ class Spim:
         # Compute: micrometers per grid step. At 0 tile overlap, this is just
         # the sensor's field of view.
         x_grid_step_um = \
-            (1 - tile_overlap_x_percent/100.0) * self.cfg.tile_size_x_um
+            (1 - tile_overlap_x_percent / 100.0) * self.cfg.tile_size_x_um
         y_grid_step_um = \
-            (1 - tile_overlap_y_percent/100.0) * self.cfg.tile_size_y_um
+            (1 - tile_overlap_y_percent / 100.0) * self.cfg.tile_size_y_um
         return x_grid_step_um, y_grid_step_um
 
     def get_tile_counts(self, tile_overlap_x_percent: float,
