@@ -134,7 +134,6 @@ class Spim:
         self.cache_storage_dir = local_storage_dir / Path("micr/")
         self.log.info(f"Creating cache dataset folder in: "
                       f"{self.cache_storage_dir.absolute()}")
-        self.cache_storage_dir.mkdir(parents=True, exist_ok=overwrite)
         # Create required external folder structure.
         output_dir = None
         if self.cfg.ext_storage_dir is None:
@@ -142,8 +141,11 @@ class Spim:
         elif self.cfg.local_storage_dir == self.cfg.ext_storage_dir:
             output_dir = local_storage_dir
         else:
+            # Only make local storage if different then external drive
+            self.cache_storage_dir.mkdir(parents=True, exist_ok=overwrite)
             output_dir = self.cfg.ext_storage_dir / top_folder_name
             if output_dir.exists() and not overwrite:
+
                 self.log.error(f"Output folder {output_dir.absolute()} exists. "
                                "This function must be rerun with overwrite=True.")
                 raise
