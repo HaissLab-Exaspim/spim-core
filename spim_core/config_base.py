@@ -1,28 +1,35 @@
 """TOML wrapper that enables edits, reloads, and manages derived params."""
 
 import toml
+from ruamel.yaml import YAML
 import logging
 from pathlib import Path
 from typing import Union, List
 from numpy import dtype
 
 
-class TomlConfig:
+class Config:
 
-    def __init__(self, toml_filepath: Union[str, None] = None,
+    def __init__(self, filepath: Union[str, None] = None,
                  config_template: Union[dict, None] = None,
                  create: bool = False):
-        """Load an existing config or create one from the specified template.
+        """Load an existing (TOML or YAML) config
+           or create one from the specified template.
 
-            :param toml_filepath: location of the config if we are
+            :param filepath: location of the config if we are
                 loading one from file. Default location to save to. Optional.
-            :param config_template: dict with the same key structure
-                as the TOML file. Optional. Only required if `create` is True.
+            :param config_template: dict with the same key structure as the
+                config file. Optional. Only required if `create` is True.
             :param create: if True, create a config object from the specified
                 `config_template`.
+            :note: comments and file order are not preserved for toml files but
+                *are* preserved in yaml files. This is a quirk of the libraries
+                used to read/write them.
         """
-        self.cfg = None
-        self.path = Path(toml_filepath) if toml_filepath else None
+        self.cfg = None  # The actual type will vary but it can be treated
+                         # as a dict.
+        self.handlers = {"yaml": YAML(), "toml": toml}
+        self.path = Path(filepath) if filepath else None
         self.template = config_template
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         # User specified existing config.
@@ -64,10 +71,16 @@ class TomlConfig:
         """Load a config from file specified in filepath or __init__."""
         if filepath:
             self.path = filepath
-        assert (self.path.is_file() and self.path.exists()), \
-            f"Error: config does not exist at provided filepath: {self.path}."
-        with open(filepath, 'r') as toml_file:
-            self.cfg = toml.load(toml_file)
+        if not (self.path.is_file() and self.path.exists()):
+            raise AssertionError(f"Config does not exist at provided "
+                                 f"filepath: {self.path}.")
+        file_type = self.path.name.split(".")[-1].lower()
+        cfg_handler = self.handlers.get(file_type, None)
+        if cfg_handler is None:
+            raise RuntimeError("Config file extension not recognized."
+                               "File must have a *.yaml or *.toml suffix.")
+        with open(filepath, 'r') as cfg_file:
+            self.cfg = cfg_handler.load(cfg_file)
         self.doc_name = self.path.name
         if not self.template:
             return
@@ -90,6 +103,8 @@ class TomlConfig:
             if filename never specified).
             If file, we use the specified filename.
             If no path specified, we overwrite unless flagged not to do so.
+            File extension (yaml or toml) dictates what type of file is
+            saved.
         :param overwrite: bool to indicate if we overwrite an existing file.
             Defaults to True so that we can save() over a previous file.
         """
@@ -98,11 +113,16 @@ class TomlConfig:
         # if file name is unspecified, use the original.
         if write_path.is_dir():
             write_path = write_path / self.doc_name
+        file_type = write_path.name.split(".")[-1].lower()
+        cfg_handler = self.handlers.get(file_type, None)
+        if cfg_handler is None:
+            raise ValueError("Config file extension not recognized."
+                               "File must have a *.yaml or *.toml suffix.")
         with write_path.open("w") as f:
-            f.write(toml.dumps(self.cfg))
+            cfg_handler.dump(self.cfg, f)
 
 
-class SpimConfig(TomlConfig):
+class SpimConfig(Config):
 
     def __init__(self, toml_filepath: Union[str, None] = None,
                  config_template: Union[dict, None] = None,
