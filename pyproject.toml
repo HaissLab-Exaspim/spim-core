@@ -4,7 +4,8 @@ description = "Core features common across Allen Institute spim systems."
 version = "0.1.0"
 authors = [
     {name = "Adam Glaser", email = "adam.glaser@alleninstitute.org"},
-    {name = "Joshua Vasquez", email = "joshua.vasquez@alleninstitute.org"}
+    {name = "Sonya Vasquez", email = "sonya.vasquez@alleninstitute.org"},
+    {name = "Micah Woodard", email = "micah.woodard@alleninstitute.org"}
 ]
 readme = "README.md"
 keywords = ['microcsopy', 'spim']
@@ -26,13 +27,14 @@ dependencies = [
     "numpy >= 1.22.3",
     "matplotlib >= 3.5.2",
     "toml >= 0.10.2",
+    "ruamel.yaml >= 0.17.35",
     "mock >= 4.0.3",
     "coloredlogs >= 15.0.1",
     "pygit2 >= 1.12.0",
 ]
 
 [project.urls]
-repository = "https://github.com/AllenNeuralDynamics/exa-spim-control"
+repository = "https://github.com/AllenNeuralDynamics/spim-core"
 
 [build-system]
 requires = ["flit-core>=3.7.1,<4"]
