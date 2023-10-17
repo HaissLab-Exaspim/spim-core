@@ -104,7 +104,7 @@ class Config:
             If file, we use the specified filename.
             If no path specified, we overwrite unless flagged not to do so.
             File extension (yaml or toml) dictates what type of file is
-            written.
+            saved.
         :param overwrite: bool to indicate if we overwrite an existing file.
             Defaults to True so that we can save() over a previous file.
         """
@@ -116,7 +116,7 @@ class Config:
         file_type = write_path.name.split(".")[-1].lower()
         cfg_handler = self.handlers.get(file_type, None)
         if cfg_handler is None:
-            raise RuntimeError("Config file extension not recognized."
+            raise ValueError("Config file extension not recognized."
                                "File must have a *.yaml or *.toml suffix.")
         with write_path.open("w") as f:
             cfg_handler.dump(self.cfg, f)
