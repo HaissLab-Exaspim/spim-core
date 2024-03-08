@@ -57,8 +57,12 @@ daq_driver_kwds:
     '405': 6
     galvo_a: 17
     galvo_b: 19
-tiger_controller_driver_kwds:
-  com_port: COM3
+
+motion_control:
+  simulated : true
+  motion_control_kwds:
+    com_port : "COM3"
+    
 estimates: {}
 channel_specs:
   '488':
