@@ -60,7 +60,7 @@ daq_driver_kwds:
 
 motion_control:
   simulated : true
-  motion_control_kwds:
+  driver_kwds:
     com_port : "COM3"
     
 estimates: {}
