@@ -207,7 +207,7 @@ class SpimConfig(Config):
 
     @channels.setter
     def channels(self, wavelengths: List[int]):
-        self.cfg['imaging_specs']['laser_wavelengths'] = wavelengths
+        self.cfg['imaging_specs']['laser_wavelengths'] = [int(w) for w in wavelengths]
         
     @property
     def possible_channels(self):
