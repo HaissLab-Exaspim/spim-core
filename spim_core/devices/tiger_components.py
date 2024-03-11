@@ -3,8 +3,7 @@
 import logging
 from time import sleep
 from tigerasi.tiger_controller import TigerController, STEPS_PER_UM
-from tigerasi.device_codes import ScanPattern, TTLIn0Mode, TTLOut0Mode, \
-    RingBufferMode
+from tigerasi.device_codes import ScanPattern, TTLIn0Mode, TTLOut0Mode, RingBufferMode
 
 
 class FilterWheel:
@@ -30,7 +29,9 @@ class FilterWheel:
         cmd_str = f"MP {index}\r\n"
         self.log.debug(f"FW{self.tiger_axis} move to index: {index}.")
         # Note: the filter wheel has slightly different reply line termination.
-        self.tigerbox.send(f"FW {self.tiger_axis}\r\n", read_until=f"\n\r{self.tiger_axis}>")
+        self.tigerbox.send(
+            f"FW {self.tiger_axis}\r\n", read_until=f"\n\r{self.tiger_axis}>"
+        )
         self.tigerbox.send(cmd_str, read_until=f"\n\r{self.tiger_axis}>")
         # TODO: add "busy" check because tigerbox.is_moving() doesn't apply to filter wheels.
 
@@ -53,16 +54,20 @@ class Pose:
         self.sample_to_tiger_axis_map = {}
         self.tiger_to_sample_axis_map = {}
         if axis_map is not None:
-            self.log.debug("Remapping axes with the convention "
-                           "{'sample frame axis': 'machine frame axis'} "
-                           f"from the following dict: {axis_map}.")
+            self.log.debug(
+                "Remapping axes with the convention "
+                "{'sample frame axis': 'machine frame axis'} "
+                f"from the following dict: {axis_map}."
+            )
             self.sample_to_tiger_axis_map = self._sanitize_axis_map(axis_map)
-            r_axis_map =  dict(zip(axis_map.values(), axis_map.keys()))
+            r_axis_map = dict(zip(axis_map.values(), axis_map.keys()))
             self.tiger_to_sample_axis_map = self._sanitize_axis_map(r_axis_map)
-            self.log.debug(f"New sample to tiger axis mapping: "
-                           f"{self.sample_to_tiger_axis_map}")
-            self.log.debug(f"New tiger to sample axis mapping: "
-                           f"{self.tiger_to_sample_axis_map}")
+            self.log.debug(
+                f"New sample to tiger axis mapping: " f"{self.sample_to_tiger_axis_map}"
+            )
+            self.log.debug(
+                f"New tiger to sample axis mapping: " f"{self.tiger_to_sample_axis_map}"
+            )
 
     def _sanitize_axis_map(self, axis_map: dict):
         """save an input axis mapping to apply to move commands.
@@ -80,7 +85,7 @@ class Pose:
             sanitized_axis_map[axis.lstrip("-")] = f"{sign}{t_axis.lstrip('-')}"
         return sanitized_axis_map
 
-    def _remap(self, axes: dict, mapping: dict):
+    def _remap(self, axes: dict, mapping: dict) -> dict:
         """remap input axes to their corresponding output axes.
 
         Input axes is the desired coordinate frame convention;
@@ -95,8 +100,8 @@ class Pose:
             axis = axis.lower()
             # Default to same axis if no remapped axis exists.
             new_axis = mapping.get(axis, axis)  # Get new key.
-            negative = 1 if new_axis.startswith('-') else 0
-            new_axes[new_axis.lstrip('-')] = (-1)**negative * value # Get new value.
+            negative = 1 if new_axis.startswith("-") else 0
+            new_axes[new_axis.lstrip("-")] = (-1) ** negative * value  # Get new value.
         return new_axes
 
     def _sample_to_tiger(self, axes: dict):
@@ -126,7 +131,7 @@ class Pose:
         return self._remap(axes, self.tiger_to_sample_axis_map)
 
     def _move_relative(self, wait: bool = True, **axes: float):
-        axes_moves = "".join([f'{k}={v:.3f} ' for k, v in axes.items()])
+        axes_moves = "".join([f"{k}={v:.3f} " for k, v in axes.items()])
         w_text = "" if wait else "NOT "
         self.log.debug(f"Relative move by: {axes_moves}and {w_text}waiting.")
         # Remap to hardware coordinate frame.
@@ -145,7 +150,7 @@ class Pose:
             (3) do not wait for the stage to arrive at the specified location.
         :param axes: dict, keyed by axis of which axis to move and by how much.
         """
-        axes_moves = "".join([f'{k}={v:.3f} ' for k, v in axes.items()])
+        axes_moves = "".join([f"{k}={v:.3f} " for k, v in axes.items()])
         w_text = "" if wait else "NOT "
         self.log.debug(f"Absolute move to: {axes_moves}and {w_text}waiting.")
         # Remap to hardware coordinate frame.
@@ -173,7 +178,7 @@ class Pose:
         return self.tigerbox.zero_in_place(*axes)
 
     def get_travel_limits(self, *axes: str):
-        """ Get the travel limits for the specified axes.
+        """Get the travel limits for the specified axes.
 
         :return: a dict of 2-value lists, where the first element is the lower
             travel limit and the second element is the upper travel limit.
@@ -195,12 +200,17 @@ class Pose:
         machine_axes = self._sample_to_tiger(axes)
         self.tigerbox.set_axis_backlash(**machine_axes)
 
-    def setup_finite_tile_scan(self, fast_axis: str, slow_axis: str,
-                               fast_axis_start_position: float,
-                               slow_axis_start_position: float,
-                               slow_axis_stop_position: float,
-                               tile_count: int, tile_interval_um: float,
-                               line_count: int):
+    def setup_finite_tile_scan(
+        self,
+        fast_axis: str,
+        slow_axis: str,
+        fast_axis_start_position: float,
+        slow_axis_start_position: float,
+        slow_axis_stop_position: float,
+        tile_count: int,
+        tile_interval_um: float,
+        line_count: int,
+    ):
         """Setup a tile scan orchestrated by the device hardware.
 
         This function sets up the outputting of <tile_count> output pulses
@@ -221,35 +231,48 @@ class Pose:
         machine_fast_axis = self.sample_to_tiger_axis_map[fast_axis.lower()].lstrip("-")
         machine_slow_axis = self.sample_to_tiger_axis_map[slow_axis.lower()].lstrip("-")
         # Get start/stop positions in machine coordinate frame.
-        machine_fast_axis_start_position = \
-            list(self._sample_to_tiger({fast_axis: fast_axis_start_position}).items())[0][1]
-        machine_slow_axis_start_position = \
-            list(self._sample_to_tiger({slow_axis: slow_axis_start_position}).items())[0][1]
-        machine_slow_axis_stop_position = \
-            list(self._sample_to_tiger({slow_axis: slow_axis_stop_position}).items())[0][1]
+        machine_fast_axis_start_position = list(
+            self._sample_to_tiger({fast_axis: fast_axis_start_position}).items()
+        )[0][1]
+        machine_slow_axis_start_position = list(
+            self._sample_to_tiger({slow_axis: slow_axis_start_position}).items()
+        )[0][1]
+        machine_slow_axis_stop_position = list(
+            self._sample_to_tiger({slow_axis: slow_axis_stop_position}).items()
+        )[0][1]
         # Stop any existing scan. Apply machine coordinate frame scan params.
 
-        self.log.debug(f"machine fast axis start: {machine_fast_axis_start_position},"
-                       f"machine slow axis start: {machine_slow_axis_start_position}")
-        self.tigerbox.setup_scan(machine_fast_axis, machine_slow_axis,
-                                 pattern=ScanPattern.RASTER,)
-        self.tigerbox.scanr(scan_start_mm=machine_fast_axis_start_position,
-                            pulse_interval_um=tile_interval_um,
-                            num_pixels=tile_count,
-                            retrace_speed_percent=100.)
-        self.tigerbox.scanv(scan_start_mm=machine_slow_axis_start_position,
-                            scan_stop_mm=machine_slow_axis_stop_position,
-                            line_count=line_count)
+        self.log.debug(
+            f"machine fast axis start: {machine_fast_axis_start_position},"
+            f"machine slow axis start: {machine_slow_axis_start_position}"
+        )
+        self.tigerbox.setup_scan(
+            machine_fast_axis,
+            machine_slow_axis,
+            pattern=ScanPattern.RASTER,
+        )
+        self.tigerbox.scanr(
+            scan_start_mm=machine_fast_axis_start_position,
+            pulse_interval_um=tile_interval_um,
+            num_pixels=tile_count,
+            retrace_speed_percent=100.0,
+        )
+        self.tigerbox.scanv(
+            scan_start_mm=machine_slow_axis_start_position,
+            scan_stop_mm=machine_slow_axis_stop_position,
+            line_count=line_count,
+        )
 
     def start_finite_scan(self):
         """initiate a finite tile scan that has already been setup with
         :meth:`setup_finite_tile_scan`."""
         # Kick off raster-style (default) scan.
         self.tigerbox.start_scan()
-        #self.tigerbox.start_array_scan()
+        # self.tigerbox.start_array_scan()
 
-    def setup_ext_trigger_linear_move(self, axis: str, num_pts: int,
-                                      step_size_mm: float):
+    def setup_ext_trigger_linear_move(
+        self, axis: str, num_pts: int, step_size_mm: float
+    ):
         """Setup the stage to do a predefined move when triggered via external
         TTL input.
 
@@ -260,7 +283,7 @@ class Pose:
             axis.
         """
         self._setup_relative_ring_buffer_move(axis, step_size_mm)
-        #self._setup_array_scan(axis, num_pts, step_size_mm)
+        # self._setup_array_scan(axis, num_pts, step_size_mm)
 
     def _setup_relative_ring_buffer_move(self, axis: str, step_size_mm: float):
         """Queue a single-axis relative move of the specified amount."""
@@ -268,43 +291,57 @@ class Pose:
         tiger_frame_move = self._sample_to_tiger({axis.lower(): step_size_steps})
         hw_scan_axis = self.sample_to_tiger_axis_map[axis.lower()].lower().lstrip("-")
 
-        self.log.debug(f"Provisioning tigerbox for externally triggered "
-                       f"relative move: {tiger_frame_move}")
+        self.log.debug(
+            f"Provisioning tigerbox for externally triggered "
+            f"relative move: {tiger_frame_move}"
+        )
         self.tigerbox.reset_ring_buffer()
         self.tigerbox.setup_ring_buffer(hw_scan_axis, mode=RingBufferMode.TTL)
         self.tigerbox.queue_buffered_move(**tiger_frame_move)
         # TTL mode dictates whether ring buffer move is relative or absolute.
-        self.tigerbox.set_ttl_pin_modes(TTLIn0Mode.MOVE_TO_NEXT_REL_POSITION,
-                                        TTLOut0Mode.PULSE_AFTER_MOVING,
-                                        aux_io_mode=0, aux_io_mask=0,
-                                        aux_io_state=0)
+        self.tigerbox.set_ttl_pin_modes(
+            TTLIn0Mode.MOVE_TO_NEXT_REL_POSITION,
+            TTLOut0Mode.PULSE_AFTER_MOVING,
+            aux_io_mode=0,
+            aux_io_mask=0,
+            aux_io_state=0,
+        )
 
-    def _setup_array_scan(self, axis: str, num_pts: int,
-                          step_size_mm: float, start_pos_mm: float = None):
+    def _setup_array_scan(
+        self, axis: str, num_pts: int, step_size_mm: float, start_pos_mm: float = None
+    ):
         self.log.error("This function is untested.")
         # Get Tigerbox axis/direction from args specified in SamplePose frame.
-        hw_scan_axis, step_size_mm = \
-            next(iter(self._sample_to_tiger({axis.lower(): step_size_mm})))
-        _, start_pos_mm = next(iter(self._sample_to_tiger({axis.lower(): start_pos_mm})))
-        if hw_scan_axis not in ['x', 'y']:
-            raise RuntimeError("Error, Tigerbox 'ARRAY'-style scans can only "
-                               "be configured on the x or y stage axes.")
+        hw_scan_axis, step_size_mm = next(
+            iter(self._sample_to_tiger({axis.lower(): step_size_mm}))
+        )
+        _, start_pos_mm = next(
+            iter(self._sample_to_tiger({axis.lower(): start_pos_mm}))
+        )
+        if hw_scan_axis not in ["x", "y"]:
+            raise RuntimeError(
+                "Error, Tigerbox 'ARRAY'-style scans can only "
+                "be configured on the x or y stage axes."
+            )
         # Setup scan axis.
         array_kwds = {}
-        if hw_scan_axis == 'x':
-            array_kwds['x_points'] = num_pts
-            array_kwds['delta_x_mm'] = step_size_mm
-            array_kwds['x_start_mm'] = start_pos_mm
-        elif hw_scan_axis == 'y':
-            array_kwds['y_points'] = num_pts
-            array_kwds['delta_y_mm'] = step_size_mm
-            array_kwds['y_start_mm'] = start_pos_mm
+        if hw_scan_axis == "x":
+            array_kwds["x_points"] = num_pts
+            array_kwds["delta_x_mm"] = step_size_mm
+            array_kwds["x_start_mm"] = start_pos_mm
+        elif hw_scan_axis == "y":
+            array_kwds["y_points"] = num_pts
+            array_kwds["delta_y_mm"] = step_size_mm
+            array_kwds["y_start_mm"] = start_pos_mm
         self.tigerbox.setup_array_scan(**array_kwds)
         # Enable external triggering.
         self.tigerbox.set_ttl_pin_modes(
             TTLIn0Mode.ARRAY_MODE_MOVE_TO_NEXT_POSITION,
             TTLOut0Mode.PULSE_AFTER_MOVING,
-            aux_io_mode=0, aux_io_mask=0, aux_io_state=0)
+            aux_io_mode=0,
+            aux_io_mask=0,
+            aux_io_state=0,
+        )
         # Set axis backlash compensation to 0.
         self.tigerbox.set_axis_backlash(**{hw_scan_axis: 0})
 
@@ -326,13 +363,13 @@ class CameraPose(Pose):
 
     def __init__(self, tigerbox: TigerController, axis_map: dict = None):
         super().__init__(tigerbox, axis_map)
-        self.axes = ['N']
+        self.axes = ["N"]
 
     def move_absolute(self, n, wait: bool = True):
         super()._move_absolute(wait, n=n)
 
     def move_relative(self, n, wait: bool = True):
-        axes = {'n': n}
+        axes = {"n": n}
         super()._move_relative(wait, n=n)
 
 
@@ -340,16 +377,22 @@ class SamplePose(Pose):
 
     def __init__(self, tigerbox: TigerController, axis_map: dict = None):
         super().__init__(tigerbox, axis_map)
-        self.axes = ['X', 'Y', 'Z']
+        self.axes = ["X", "Y", "Z"]
 
     def move_absolute(self, x=None, y=None, z=None, wait: bool = True):
         # Only specify Non-None axes that we want to move
-        axes = {arg: val for arg, val in locals().items()
-                if arg.upper() in self.axes and val is not None}
+        axes = {
+            arg: val
+            for arg, val in locals().items()
+            if arg.upper() in self.axes and val is not None
+        }
         super()._move_absolute(wait, **axes)
 
     def move_relative(self, x=None, y=None, z=None, wait: bool = True):
         # Only specify Non-None axes that we want to move.
-        axes = {arg: val for arg, val in locals().items()
-                if arg.upper() in self.axes and val is not None}
+        axes = {
+            arg: val
+            for arg, val in locals().items()
+            if arg.upper() in self.axes and val is not None
+        }
         super()._move_relative(wait, **axes)
