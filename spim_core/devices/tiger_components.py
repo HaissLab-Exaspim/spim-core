@@ -377,7 +377,7 @@ class SamplePose(Pose):
 
     def __init__(self, tigerbox: TigerController, axis_map: dict = None):
         super().__init__(tigerbox, axis_map)
-        self.axes = ["X", "Y", "Z"]
+        self.axes = ["X", "V", "Z"]
 
     def move_absolute(self, x=None, y=None, z=None, wait: bool = True):
         # Only specify Non-None axes that we want to move
