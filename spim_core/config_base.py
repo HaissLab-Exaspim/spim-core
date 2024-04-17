@@ -129,6 +129,7 @@ class Config:
                 "Config file extension not recognized."
                 "File must have a *.yaml or *.toml suffix."
             )
+        self.log.info(f"Writing config file to {write_path}")
         with write_path.open("w") as f:
             cfg_handler.dump(self.cfg, f)
 
@@ -149,6 +150,9 @@ class SpimConfig(Config):
         self.tile_specs = self.cfg["tile_specs"]
 
     def sanity_check(self):
+
+        self.log.debug(f"Performing {self.path} config sanity checks")
+
         """Confirm that config fields have values that are in the right ranges."""
         # Note: do not check if fields exist. Check whether fields are
         #   the right ranges.
