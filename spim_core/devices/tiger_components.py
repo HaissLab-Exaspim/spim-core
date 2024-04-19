@@ -68,6 +68,7 @@ class Pose:
             self.log.debug(
                 f"New tiger to sample axis mapping: " f"{self.tiger_to_sample_axis_map}"
             )
+            self.axes = [x.upper() for x in axis_map.values()]
 
     def _sanitize_axis_map(self, axis_map: dict):
         """save an input axis mapping to apply to move commands.
@@ -155,6 +156,7 @@ class Pose:
         self.log.debug(f"Absolute move to: {axes_moves}and {w_text}waiting.")
         # Remap to hardware coordinate frame.
         machine_axes = self._sample_to_tiger(axes)
+        self.log.debug(f"moving axes {machine_axes}")
         self.tigerbox.move_absolute(**machine_axes, wait=wait)
         if wait:
             while self.is_moving():
@@ -363,29 +365,30 @@ class CameraPose(Pose):
 
     def __init__(self, tigerbox: TigerController, axis_map: dict = None):
         super().__init__(tigerbox, axis_map)
-        self.axes = ["N"]
+        # self.axes = ["N"]
 
-    def move_absolute(self, n, wait: bool = True):
-        super()._move_absolute(wait, n=n)
+    def move_absolute(self, c, wait: bool = True):
+        super()._move_absolute(wait, c=c)
 
-    def move_relative(self, n, wait: bool = True):
-        axes = {"n": n}
-        super()._move_relative(wait, n=n)
+    def move_relative(self, c, wait: bool = True):
+        super()._move_relative(wait, c=c)
 
 
 class SamplePose(Pose):
 
     def __init__(self, tigerbox: TigerController, axis_map: dict = None):
         super().__init__(tigerbox, axis_map)
-        self.axes = ["X", "V", "Z"]
+        # self.axes = ["X", "V", "Z"]
 
     def move_absolute(self, x=None, y=None, z=None, wait: bool = True):
         # Only specify Non-None axes that we want to move
         axes = {
             arg: val
             for arg, val in zip(["x","y","z"], [x,y,z])
-            if arg.upper() in self.axes and val is not None
+            if arg.lower() in self.sample_to_tiger_axis_map.keys() and val is not None
         }
+        self.log.debug(f"{self.sample_to_tiger_axis_map}")
+        self.log.debug(f"moving axes {axes}")
         super()._move_absolute(wait, **axes)
 
     def move_relative(self, x=None, y=None, z=None, wait: bool = True):
@@ -393,6 +396,8 @@ class SamplePose(Pose):
         axes = {
             arg: val
             for arg, val in zip(["x","y","z"], [x,y,z])
-            if arg.upper() in self.axes and val is not None
+            if arg.lower() in self.sample_to_tiger_axis_map.keys() and val is not None
         }
+        self.log.debug(f"{self.sample_to_tiger_axis_map}")
+        self.log.debug(f"moving axes {axes}")
         super()._move_relative(wait, **axes)
