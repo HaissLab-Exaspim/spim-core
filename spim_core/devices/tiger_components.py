@@ -383,7 +383,7 @@ class SamplePose(Pose):
         # Only specify Non-None axes that we want to move
         axes = {
             arg: val
-            for arg, val in locals().items()
+            for arg, val in zip(["x","y","z"], [x,y,z])
             if arg.upper() in self.axes and val is not None
         }
         super()._move_absolute(wait, **axes)
@@ -392,7 +392,7 @@ class SamplePose(Pose):
         # Only specify Non-None axes that we want to move.
         axes = {
             arg: val
-            for arg, val in locals().items()
+            for arg, val in zip(["x","y","z"], [x,y,z])
             if arg.upper() in self.axes and val is not None
         }
         super()._move_relative(wait, **axes)
