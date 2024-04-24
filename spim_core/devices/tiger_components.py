@@ -101,8 +101,8 @@ class Pose:
             axis = axis.lower()
             # Default to same axis if no remapped axis exists.
             new_axis = mapping.get(axis, axis)  # Get new key.
-            negative = 1 if new_axis.startswith("-") else 0
-            new_axes[new_axis.lstrip("-")] = (-1) ** negative * value  # Get new value.
+            negative = -1 if new_axis.startswith("-") else 1
+            new_axes[new_axis.lstrip("-")] = negative * value  # Get new value.
         return new_axes
 
     def _sample_to_tiger(self, axes: dict):
@@ -289,15 +289,16 @@ class Pose:
 
     def _setup_relative_ring_buffer_move(self, axis: str, step_size_mm: float):
         """Queue a single-axis relative move of the specified amount."""
-        step_size_steps = step_size_mm * 1e3 * STEPS_PER_UM
+        step_size_steps = step_size_mm * 1e3 * STEPS_PER_UM # this is steps_per_pulse but zithout +/- if mapping says so
         tiger_frame_move = self._sample_to_tiger({axis.lower(): step_size_steps})
-        hw_scan_axis = self.sample_to_tiger_axis_map[axis.lower()].lower().lstrip("-")
+        hw_scan_axis = list(tiger_frame_move.keys())[0]
+        steps_per_pulse = list(tiger_frame_move.values())[0]# this is steps_per_pulse and can be negative/positive if mapping says so
 
         self.log.debug(
             f"Provisioning tigerbox for externally triggered "
-            f"relative move: {tiger_frame_move}"
+            f"TTL relative move on axis {hw_scan_axis} will be {steps_per_pulse} steps per pulse"
         )
-        self.tigerbox.reset_ring_buffer()
+        self.tigerbox.reset_ring_buffer(wait=True, axis=hw_scan_axis.upper())
         self.tigerbox.setup_ring_buffer(hw_scan_axis, mode=RingBufferMode.TTL)
         self.tigerbox.queue_buffered_move(**tiger_frame_move)
         # TTL mode dictates whether ring buffer move is relative or absolute.
